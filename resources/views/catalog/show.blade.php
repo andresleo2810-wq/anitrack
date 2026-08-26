@@ -1,14 +1,33 @@
 <x-app-layout>
     <x-slot name="header">
         <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-            {{ $anime['title'] }}
+            {{ $anime['title_spanish'] ?? $anime['title'] }}
         </h2>
     </x-slot>
 
     <div class="py-12">
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
 
-            <a href="{{ route('catalog.index') }}" class="text-indigo-600 dark:text-indigo-400 hover:underline text-sm">← Volver al catálogo</a>
+            <a href="{{ route('catalog.index') }}"
+               class="text-indigo-600 dark:text-indigo-400 hover:underline text-sm">← Volver al catálogo</a>
+
+            {{-- Mensaje de éxito --}}
+            @if(session('success'))
+                <div class="mt-4 px-4 py-3 rounded-lg bg-green-100 text-green-800 text-sm">
+                    {{ session('success') }}
+                </div>
+            @endif
+
+            {{-- Errores de validación (ahora visibles) --}}
+            @if($errors->any())
+                <div class="mt-4 px-4 py-3 rounded-lg bg-red-100 text-red-800 text-sm">
+                    <ul class="list-disc list-inside">
+                        @foreach($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
 
             <div class="mt-4 bg-white dark:bg-gray-800 rounded-xl shadow overflow-hidden">
                 <div class="md:flex">
@@ -21,17 +40,14 @@
                     </div>
 
                     {{-- Información --}}
-                    {{-- Información --}}
                     <div class="p-6 flex-1">
                         <h1 class="text-3xl font-bold text-gray-900 dark:text-white">
                             {{ $anime['title_spanish'] ?? $anime['title'] }}
                         </h1>
-                        
-                        @if(!empty($anime['title_spanish']))
-                            <p class="text-gray-500 dark:text-gray-400 mt-1">{{ $anime['title'] }}</p>
-                        @elseif(!empty($anime['title_english']))
-                            <p class="text-gray-500 dark:text-gray-400 mt-1">{{ $anime['title_english'] }}</p>
-                        @endif
+                        <p class="text-gray-500 dark:text-gray-400 mt-1">
+                            {{ !empty($anime['title_spanish']) ? $anime['title'] : ($anime['title_english'] ?? '') }}
+                        </p>
+
                         {{-- Badges --}}
                         <div class="mt-4 flex flex-wrap gap-2 text-sm">
                             @if(!empty($anime['score']))
@@ -68,14 +84,6 @@
                             </div>
                         @endif
 
-                        {{-- Acciones --}}
-                                                {{-- Mensaje de éxito --}}
-                        @if(session('success'))
-                            <div class="mt-4 px-4 py-3 rounded-lg bg-green-100 text-green-800 text-sm">
-                                {{ session('success') }}
-                            </div>
-                        @endif
-
                         {{-- Formulario Mi Lista --}}
                         <form method="POST" action="{{ route('mylist.store') }}" class="mt-6">
                             @csrf
@@ -83,6 +91,7 @@
                             <input type="hidden" name="title" value="{{ $anime['title'] }}">
                             <input type="hidden" name="image_url" value="{{ $anime['images']['jpg']['image_url'] ?? null }}">
                             <input type="hidden" name="score_api" value="{{ $anime['score'] ?? null }}">
+                            <input type="hidden" name="genres" value="{{ json_encode(collect($anime['genres'] ?? [])->map(fn($g) => is_array($g) ? ($g['name'] ?? '') : $g)->values()) }}">
 
                             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div>
