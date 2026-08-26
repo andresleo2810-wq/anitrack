@@ -1,17 +1,105 @@
 <x-app-layout>
     <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 leading-tight">
+        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
             {{ __('Dashboard') }}
         </h2>
     </x-slot>
 
     <div class="py-12">
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-            <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
-                <div class="p-6 text-gray-900">
-                    {{ __("You're logged in!") }}
+
+            @if($stats['total'] === 0)
+                <div class="text-center py-16 bg-white dark:bg-gray-800 rounded-xl shadow">
+                    <p class="text-5xl mb-4">📊</p>
+                    <h3 class="text-xl font-semibold text-gray-900 dark:text-white">Aún no hay estadísticas</h3>
+                    <p class="mt-2 text-gray-500 dark:text-gray-400">Agrega anime a tu lista para ver tu panel otaku.</p>
+                    <a href="{{ route('catalog.index') }}"
+                       class="inline-block mt-6 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold">
+                        Ir al catálogo
+                    </a>
                 </div>
-            </div>
+            @else
+                {{-- Tarjetas --}}
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-5 text-center">
+                        <p class="text-3xl font-bold text-indigo-600">{{ $stats['total'] }}</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">En lista</p>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-5 text-center">
+                        <p class="text-3xl font-bold text-green-600">{{ $stats['completed'] }}</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Completados</p>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-5 text-center">
+                        <p class="text-3xl font-bold text-blue-600">{{ $stats['watching'] }}</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Viendo</p>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-5 text-center">
+                        <p class="text-3xl font-bold text-purple-600">{{ $stats['episodes'] }}</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Episodios</p>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-5 text-center">
+                        <p class="text-3xl font-bold text-yellow-500">★ {{ $stats['avg_score'] }}</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Promedio</p>
+                    </div>
+                </div>
+
+                {{-- Gráficas --}}
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+                    <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-6">
+                        <h3 class="font-semibold text-gray-900 dark:text-white mb-4">Anime por estado</h3>
+                        <canvas id="statusChart" height="220"></canvas>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-6">
+                        <h3 class="font-semibold text-gray-900 dark:text-white mb-4">Tus géneros favoritos</h3>
+                        <canvas id="genreChart" height="220"></canvas>
+                    </div>
+                </div>
+
+                {{-- Top puntuados --}}
+                <div class="mt-8 bg-white dark:bg-gray-800 rounded-xl shadow p-6">
+                    <h3 class="font-semibold text-gray-900 dark:text-white mb-4">Tus favoritos (mejor puntuados)</h3>
+                    <div class="space-y-3">
+                        @foreach($topRated as $item)
+                            <div class="flex items-center gap-4">
+                                <img src="{{ $item->anime->image_url }}" class="w-10 h-14 object-cover rounded">
+                                <span class="flex-1 text-gray-900 dark:text-gray-200">{{ $item->anime->title }}</span>
+                                <span class="text-yellow-500 font-semibold">★ {{ $item->score }}/10</span>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+
         </div>
     </div>
+
+    @if($stats['total'] > 0)
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        new Chart(document.getElementById('statusChart'), {
+            type: 'doughnut',
+            data: {
+                labels: @json($byStatus->keys()->map(fn($s) => \App\Models\UserAnime::STATUS_LABELS[$s] ?? $s)->values()),
+                datasets: [{
+                    data: @json($byStatus->values()),
+                    backgroundColor: @json($byStatus->keys()->map(fn($s) => $statusColors[$s] ?? '#94a3b8')->values())
+                }]
+            },
+            options: { plugins: { legend: { position: 'bottom' } } }
+        });
+
+        new Chart(document.getElementById('genreChart'), {
+            type: 'bar',
+            data: {
+                labels: @json($byGenre->keys()->values()),
+                datasets: [{
+                    data: @json($byGenre->values()->values()),
+                    backgroundColor: '#8b5cf6',
+                    borderRadius: 6
+                }]
+            },
+            options: { plugins: { legend: { display: false } }, scales: { y: { ticks: { stepSize: 1 } } } }
+        });
+    </script>
+    @endif
 </x-app-layout>

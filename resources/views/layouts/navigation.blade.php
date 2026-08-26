@@ -25,6 +25,10 @@
             </div>
 
             <!-- Settings Dropdown -->
+                         <!-- Selector de temas -->
+            <div class="hidden sm:flex sm:items-center sm:ms-6">
+                <x-theme-switcher />
+            </div>
             <div class="hidden sm:flex sm:items-center sm:ms-6">
                 <x-dropdown align="right" width="48">
                     <x-slot name="trigger">
@@ -89,6 +93,9 @@
             <div class="px-4">
                 <div class="font-medium text-base text-gray-800">{{ Auth::user()->name }}</div>
                 <div class="font-medium text-sm text-gray-500">{{ Auth::user()->email }}</div>
+                            <div class="mt-3 px-4">
+                <x-theme-switcher />
+            </div>
             </div>
 
             <div class="mt-3 space-y-1">
