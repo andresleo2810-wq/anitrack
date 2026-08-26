@@ -68,6 +68,30 @@
                         @endforeach
                     </div>
                 </div>
+
+                {{-- 🤖 Recomendaciones IA --}}
+                @if(isset($recommendations) && $recommendations->isNotEmpty())
+                    <div class="mt-8">
+                        <h3 class="font-semibold text-gray-900 dark:text-white mb-1">🤖 Recomendados para ti</h3>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                            Porque te gusta: {{ isset($topGenres) ? $topGenres->implode(' · ') : 'tus géneros favoritos' }}
+                        </p>
+                        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                            @foreach($recommendations as $rec)
+                                <a href="{{ route('catalog.show', $rec['mal_id']) }}"
+                                   class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden hover:shadow-lg transition">
+                                    <img src="{{ $rec['images']['jpg']['image_url'] }}"
+                                         alt="{{ $rec['title'] }}"
+                                         class="w-full aspect-[2/3] object-cover">
+                                    <div class="p-2">
+                                        <p class="text-xs font-semibold text-gray-900 dark:text-white truncate">{{ $rec['title'] }}</p>
+                                        <p class="text-xs text-yellow-500 font-semibold">★ {{ $rec['score'] ?? 'N/A' }}</p>
+                                    </div>
+                                </a>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
             @endif
 
         </div>

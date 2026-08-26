@@ -12,9 +12,14 @@
             <form method="GET" action="{{ route('catalog.index') }}"
                   class="mb-8 bg-white dark:bg-gray-800 rounded-xl shadow p-4">
                 <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                    <input type="text" name="q" value="{{ $filters['q'] }}"
-                           placeholder="Buscar anime..."
-                           class="rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
+                    {{-- Input con micrófono de voz --}}
+                    <div class="flex gap-2">
+                        <input type="text" name="q" value="{{ $filters['q'] }}"
+                               placeholder="Buscar anime... (o habla 🎤)"
+                               class="flex-1 rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
+                        <button type="button" id="btn-voz" title="Buscar por voz"
+                                class="px-3 rounded-lg bg-indigo-600 text-white hover:brightness-125">🎤</button>
+                    </div>
                     <select name="genre" class="rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
                         <option value="">Todos los géneros</option>
                         @foreach(\App\Services\JikanService::GENRES_ES as $es)
@@ -74,4 +79,23 @@
 
         </div>
     </div>
+
+    {{-- 🎤 Búsqueda por voz (Web Speech API) --}}
+    <script>
+        const btnVoz = document.getElementById('btn-voz');
+        const inputQ = document.querySelector('input[name="q"]');
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+        if (SR && btnVoz) {
+            const rec = new SR();
+            rec.lang = 'es-ES';
+            rec.onresult = (e) => { inputQ.value = e.results[0][0].transcript; };
+            rec.onstart = () => { btnVoz.textContent = '🔴'; };
+            rec.onend = () => { btnVoz.textContent = '🎤'; };
+            btnVoz.onclick = () => rec.start();
+        } else if (btnVoz) {
+            btnVoz.disabled = true;
+            btnVoz.title = 'Tu navegador no soporta búsqueda por voz';
+        }
+    </script>
 </x-app-layout>
