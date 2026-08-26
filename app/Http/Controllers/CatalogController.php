@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Anime;
+use App\Models\UserAnime;
 use App\Services\JikanService;
 use Illuminate\Http\Request;
 
@@ -9,27 +11,44 @@ class CatalogController extends Controller
 {
     public function __construct(protected JikanService $jikan) {}
 
-    /**
-     * Catálogo principal (anime populares)
-     */
+    /** Catálogo con filtros avanzados */
     public function index(Request $request)
     {
-        $query = $request->input('q', '');
+        $filters = [
+            'q' => $request->input('q', ''),
+            'genre' => $request->input('genre', ''),
+            'type' => $request->input('type', ''),
+            'min_score' => (float) $request->input('min_score', 0),
+        ];
 
-        $animeList = $query
-            ? $this->jikan->searchAnime($query)
-            : $this->jikan->getTopAnime();
+        $hasFilters = $filters['q'] !== '' || $filters['genre'] !== ''
+            || $filters['type'] !== '' || $filters['min_score'] > 0;
+
+        if ($hasFilters) {
+            $genreEn = $filters['genre'] !== ''
+                ? (array_search($filters['genre'], \App\Services\JikanService::GENRES_ES, true) ?: null)
+                : null;
+
+            $animeList = $this->jikan->searchAnime([
+                'q' => $filters['q'] ?: null,
+                'genre_en' => $genreEn,
+                'genre_mal' => $genreEn ? (\App\Services\JikanService::GENRES_MAL[$genreEn] ?? null) : null,
+                'type' => $filters['type'] ?: null,
+                'min_score' => $filters['min_score'],
+            ]);
+        } else {
+            $animeList = $this->jikan->getTopAnime();
+        }
 
         return view('catalog.index', [
             'animeList' => $animeList,
-            'query' => $query,
+            'query' => $filters['q'],
+            'filters' => $filters,
         ]);
     }
 
-    /**
-     * Detalle de un anime
-     */
-        public function show(int $malId)
+    /** Ficha de detalle */
+    public function show(int $malId)
     {
         $anime = $this->jikan->getAnimeById($malId);
 
@@ -38,9 +57,9 @@ class CatalogController extends Controller
         }
 
         $userAnime = null;
-        $local = \App\Models\Anime::where('mal_id', $malId)->first();
+        $local = Anime::where('mal_id', $malId)->first();
         if ($local) {
-            $userAnime = \App\Models\UserAnime::where('user_id', auth()->id())
+            $userAnime = UserAnime::where('user_id', auth()->id())
                 ->where('anime_id', $local->id)->first();
         }
 

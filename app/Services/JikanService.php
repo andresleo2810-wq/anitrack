@@ -16,9 +16,9 @@ class JikanService
         protected SpanishSynopsisService $spanish,
     ) {}
 
-    // ============ DICCIONARIOS EN ESPAÑOL ============
+    // ============ DICCIONARIOS EN ESPAÑOL (públicos para usar en controlador) ============
 
-    protected const GENRES_ES = [
+    public const GENRES_ES = [
         'Action' => 'Acción', 'Adventure' => 'Aventura', 'Comedy' => 'Comedia',
         'Drama' => 'Drama', 'Fantasy' => 'Fantasía', 'Horror' => 'Horror',
         'Mecha' => 'Mecha', 'Music' => 'Música', 'Mystery' => 'Misterio',
@@ -28,6 +28,13 @@ class JikanService
         'Ecchi' => 'Ecchi', 'Josei' => 'Josei', 'Seinen' => 'Seinen', 'Shoujo' => 'Shoujo',
         'Shounen' => 'Shounen', 'Mahou Shoujo' => 'Mahou Shoujo', 'Gourmet' => 'Gourmet',
         'Avant Garde' => 'Vanguardia', 'Boys Love' => 'Boys Love', 'Girls Love' => 'Girls Love',
+    ];
+
+    public const GENRES_MAL = [
+        'Action' => 1, 'Adventure' => 2, 'Comedy' => 4, 'Drama' => 8,
+        'Fantasy' => 10, 'Horror' => 14, 'Mystery' => 7, 'Romance' => 22,
+        'Sci-Fi' => 24, 'Slice of Life' => 36, 'Sports' => 30,
+        'Supernatural' => 37, 'Thriller' => 41,
     ];
 
     protected const STATUS_ES = [
@@ -88,10 +95,6 @@ class JikanService
         trailer { id site }
     ';
 
-    /**
-     * Convierte AniList al formato de la vista.
-     * Si $withSpanish = true, intenta obtener título y sinopsis en español desde Wikipedia.
-     */
     protected function normalize(array $m, bool $withSpanish = false): array
     {
         $romaji = $m['title']['romaji'] ?? 'Sin título';
@@ -126,14 +129,55 @@ class JikanService
             ->map(fn($m) => $this->normalize($m))->all();
     }
 
-    // ============ MÉTODOS PÚBLICOS ============
+    // ============ BÚSQUEDA CON FILTROS (nueva versión) ============
 
-    public function searchAnime(string $query, int $page = 1, int $limit = 24): array
+    public function searchAnime(array $f, int $limit = 24): array
     {
-        return $this->cached("search_{$query}_{$page}", 1, function () use ($query, $page, $limit) {
-            $data = $this->jikan('/anime', ['q' => $query, 'page' => $page, 'limit' => $limit, 'sfw' => 'true']);
-            return !empty($data) ? $data
-                : $this->anilistList(', search: $search', ['search' => $query], $limit);
+        return $this->cached('search_' . md5(json_encode($f)), 1, function () use ($f, $limit) {
+            // Jikan (MyAnimeList)
+            $data = $this->jikan('/anime', array_filter([
+                'q' => $f['q'] ?? null,
+                'genres' => $f['genre_mal'] ?? null,
+                'type' => !empty($f['type']) ? strtolower($f['type']) : null,
+                'min_score' => ($f['min_score'] ?? 0) > 0 ? $f['min_score'] : null,
+                'order_by' => ($f['min_score'] ?? 0) > 0 ? 'score' : null,
+                'sort' => 'desc',
+                'sfw' => 'true',
+                'limit' => $limit,
+            ]));
+            if (!empty($data)) return $data;
+
+            // AniList (respaldo)
+            $decl = '$page:Int,$perPage:Int';
+            $vars = ['page' => 1, 'perPage' => $limit];
+            $filter = ', sort: ' . ((($f['min_score'] ?? 0) > 0) ? 'SCORE_DESC' : 'POPULARITY_DESC');
+
+            if (!empty($f['q'])) {
+                $decl .= ',$search:String';
+                $filter .= ', search: $search';
+                $vars['search'] = $f['q'];
+            }
+            if (!empty($f['genre_en'])) {
+                $decl .= ',$genre:String';
+                $filter .= ', genre: $genre';
+                $vars['genre'] = $f['genre_en'];
+            }
+            if (!empty($f['type'])) {
+                $decl .= ',$format:MediaFormat';
+                $filter .= ', format: $format';
+                $vars['format'] = $f['type'];
+            }
+            if (($f['min_score'] ?? 0) > 0) {
+                $decl .= ',$minScore:Int';
+                $filter .= ', averageScore_greater: $minScore';
+                $vars['minScore'] = (int) ($f['min_score'] * 10);
+            }
+
+            $q = "query({$decl}){ Page(page:\$page,perPage:\$perPage){ media(type:ANIME{$filter}){ " . self::FIELDS . " } } }";
+            $res = $this->anilist($q, $vars);
+
+            return collect($res['Page']['media'] ?? [])
+                ->map(fn($m) => $this->normalize($m))->all();
         });
     }
 
@@ -151,7 +195,6 @@ class JikanService
         $data = $this->jikan("/anime/{$malId}/full");
 
         if (!empty($data) && isset($data['mal_id'])) {
-            // Buscar versión en español
             $es = $this->spanish->get($data['title'] ?? '');
 
             $data['title_spanish'] = $es['title'] ?? null;
@@ -186,8 +229,6 @@ class JikanService
             ], $limit);
         });
     }
-
-    // ============ CACHE (nunca guarda vacíos) ============
 
     protected function cached(string $key, int $hours, callable $fetch): array
     {
