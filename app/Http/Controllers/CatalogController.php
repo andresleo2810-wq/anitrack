@@ -40,10 +40,11 @@ class CatalogController extends Controller
             $animeList = $this->jikan->getTopAnime();
         }
 
-        return view('catalog.index', [
+                return view('catalog.index', [
             'animeList' => $animeList,
             'query' => $filters['q'],
             'filters' => $filters,
+            'season' => $hasFilters ? [] : $this->jikan->getSeasonNow(12),
         ]);
     }
 
@@ -63,9 +64,10 @@ class CatalogController extends Controller
                 ->where('anime_id', $local->id)->first();
         }
 
-        return view('catalog.show', [
+                return view('catalog.show', [
             'anime' => $anime,
             'userAnime' => $userAnime,
-        ]);
+            'similar' => $this->jikan->getRecommendations($malId),
+        ]);;
     }
 }

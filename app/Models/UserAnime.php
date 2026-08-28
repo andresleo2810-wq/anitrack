@@ -4,15 +4,22 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class UserAnime extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $table = 'user_anime';
 
     protected $fillable = [
-        'user_id', 'anime_id', 'status', 'score', 'episodes_watched', 'notes'
+        'user_id', 'anime_id', 'status', 'score',
+        'episodes_watched', 'notes', 'started_at', 'finished_at', 'rewatch_count'
+    ];
+
+    protected $casts = [
+        'started_at' => 'date',
+        'finished_at' => 'date',
     ];
 
     public const STATUS_LABELS = [
@@ -49,5 +56,14 @@ class UserAnime extends Model
     public function statusColor(): string
     {
         return self::STATUS_COLORS[$this->status] ?? 'bg-gray-100 text-gray-800';
+    }
+
+    /** Porcentaje de progreso 0-100 */
+    public function progressPercent(): int
+    {
+        $total = $this->anime->episodes_total ?? 0;
+        if (!$total) return 0;
+
+        return min(100, round(($this->episodes_watched / $total) * 100));
     }
 }

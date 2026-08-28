@@ -238,4 +238,29 @@ class JikanService
             return $data;
         });
     }
+        /** Anime similares (Jikan → AniList fallback) */
+    public function getRecommendations(int $malId, int $limit = 6): array
+    {
+        return $this->cached("recs_{$malId}", 24, function () use ($malId, $limit) {
+            $data = $this->jikan("/anime/{$malId}/recommendations");
+
+            if (!empty($data)) {
+                return collect($data)->take($limit)->map(fn($r) => [
+                    'mal_id' => $r['entry']['mal_id'] ?? null,
+                    'title' => $r['entry']['title'] ?? null,
+                    'image' => $r['entry']['images']['jpg']['image_url'] ?? null,
+                ])->filter(fn($r) => $r['mal_id'])->values()->all();
+            }
+
+            $q = 'query($idMal:Int){ Media(idMal:$idMal,type:ANIME){ recommendations(sort:RATING_DESC,perPage:6){ nodes{ mediaRecommendation{ idMal title{ romaji } coverImage{ large } } } } } }';
+            $res = $this->anilist($q, ['idMal' => $malId]);
+
+            return collect($res['Media']['recommendations']['nodes'] ?? [])
+                ->map(fn($n) => [
+                    'mal_id' => $n['mediaRecommendation']['idMal'] ?? null,
+                    'title' => $n['mediaRecommendation']['title']['romaji'] ?? null,
+                    'image' => $n['mediaRecommendation']['coverImage']['large'] ?? null,
+                ])->filter(fn($r) => $r['mal_id'])->take($limit)->values()->all();
+        });
+    }
 }

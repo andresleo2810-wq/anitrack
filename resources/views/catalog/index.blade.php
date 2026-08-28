@@ -52,7 +52,26 @@
 
             {{-- Grid de anime --}}
             <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                @forelse($animeList as $anime)
+                        {{-- 🌸 Anime de temporada --}}
+            @if(!empty($season))
+                <div class="mb-10">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">🌸 En emisión esta temporada</h3>
+                    <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-4">
+                        @foreach($season as $anime)
+                            <a href="{{ route('catalog.show', $anime['mal_id']) }}"
+                               class="group block bg-white dark:bg-gray-800 rounded-lg overflow-hidden shadow hover:shadow-lg transition">
+                                <div class="aspect-[2/3] overflow-hidden bg-gray-200 dark:bg-gray-700">
+                                    <img src="{{ $anime['images']['jpg']['image_url'] }}"
+                                         alt="{{ $anime['title'] }}"
+                                         class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                                </div>
+                                <p class="p-2 text-xs font-semibold text-gray-900 dark:text-white truncate">{{ $anime['title'] }}</p>
+                            </a>
+                        @endforeach
+                    </div>
+                </div>
+            @endif    
+            @forelse($animeList as $anime)
                 <a href="{{ route('catalog.show', $anime['mal_id']) }}"
                    class="group block bg-white dark:bg-gray-800 rounded-lg overflow-hidden shadow hover:shadow-lg transition">
                     <div class="aspect-[2/3] overflow-hidden bg-gray-200 dark:bg-gray-700">

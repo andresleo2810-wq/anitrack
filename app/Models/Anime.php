@@ -15,7 +15,7 @@ class Anime extends Model
         'mal_id', 'title', 'title_english', 'synopsis', 'type',
         'episodes', 'status', 'rating', 'score', 'scored_by',
         'rank', 'popularity', 'members', 'favorites', 'source',
-        'duration', 'trailer_url', 'image_url'
+        'duration', 'trailer_url', 'image_url', 'episodes_total'
     ];
 
     public function genres()

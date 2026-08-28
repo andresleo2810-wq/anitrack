@@ -91,6 +91,7 @@
                             <input type="hidden" name="title" value="{{ $anime['title'] }}">
                             <input type="hidden" name="image_url" value="{{ $anime['images']['jpg']['image_url'] ?? null }}">
                             <input type="hidden" name="score_api" value="{{ $anime['score'] ?? null }}">
+                            <input type="hidden" name="episodes_api" value="{{ $anime['episodes'] ?? null }}">
                             <input type="hidden" name="genres" value="{{ json_encode(collect($anime['genres'] ?? [])->map(fn($g) => is_array($g) ? ($g['name'] ?? '') : $g)->values()) }}">
 
                             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -114,6 +115,29 @@
                                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Episodios vistos</label>
                                     <input type="number" name="episodes_watched" min="0"
                                            value="{{ $userAnime->episodes_watched ?? 0 }}"
+                                           class="mt-1 w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
+                                </div>
+                            </div>
+                                                        {{-- 📝 Notas personales --}}
+                            <div class="mt-3">
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">📝 Notas personales</label>
+                                <textarea name="notes" rows="2"
+                                          placeholder="Ej: ver manga después, el OST es increíble..."
+                                          class="mt-1 w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">{{ $userAnime->notes ?? '' }}</textarea>
+                            </div>
+
+                            {{-- 📅 Fechas --}}
+                            <div class="grid grid-cols-2 gap-3 mt-3">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">📅 Empezado</label>
+                                    <input type="date" name="started_at"
+                                           value="{{ $userAnime?->started_at?->toDateString() }}"
+                                           class="mt-1 w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">🏁 Terminado</label>
+                                    <input type="date" name="finished_at"
+                                           value="{{ $userAnime?->finished_at?->toDateString() }}"
                                            class="mt-1 w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
                                 </div>
                             </div>
@@ -141,7 +165,26 @@
                         @endif
                     </div>
                 </div>
-            </div>
+                        </div>
+
+            {{-- ✨ Similares --}}
+            @if(!empty($similar))
+                <div class="mt-8">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">✨ Si te gustó, prueba con...</h3>
+                    <div class="grid grid-cols-3 sm:grid-cols-6 gap-4">
+                        @foreach($similar as $rec)
+                            <a href="{{ route('catalog.show', $rec['mal_id']) }}"
+                               class="group block bg-white dark:bg-gray-800 rounded-lg overflow-hidden shadow hover:shadow-lg transition">
+                                <div class="aspect-[2/3] overflow-hidden bg-gray-200 dark:bg-gray-700">
+                                    <img src="{{ $rec['image'] }}" alt="{{ $rec['title'] }}"
+                                         class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                                </div>
+                                <p class="p-2 text-xs font-semibold text-gray-900 dark:text-white truncate">{{ $rec['title'] }}</p>
+                            </a>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
 
         </div>
     </div>
