@@ -22,6 +22,7 @@ class DashboardController extends Controller
             'completed' => $items->where('status', 'completed')->count(),
             'watching' => $items->where('status', 'watching')->count(),
             'episodes' => $items->sum('episodes_watched'),
+            'minutes' => $items->sum('episodes_watched') * 24,
             'avg_score' => $scored->isNotEmpty() ? round($scored->avg('score'), 1) : 0,
         ];
 
@@ -60,10 +61,16 @@ class DashboardController extends Controller
                     ->values();
             }
         }
+        $watching = UserAnime::where('user_id', auth()->id())
+            ->where('status', 'watching')
+            ->with('anime')
+            ->orderByDesc('updated_at')
+            ->take(4)
+            ->get();
 
-        return view('dashboard', compact(
+               return view('dashboard', compact(
             'stats', 'byStatus', 'byGenre', 'topRated',
-            'statusColors', 'recommendations', 'topGenres'
+            'statusColors', 'recommendations', 'topGenres', 'watching'
         ));
-    }
+}
 }

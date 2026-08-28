@@ -11,12 +11,15 @@ class JikanService
     protected string $baseUrl = 'https://api.jikan.moe/v4';
     protected string $anilistUrl = 'https://graphql.anilist.co';
 
+    /** ¿Hay más páginas después de la última consulta? (público para el controller) */
+    public bool $lastHasMore = false;
+
     public function __construct(
         protected TranslationService $translator,
         protected SpanishSynopsisService $spanish,
     ) {}
 
-    // ============ DICCIONARIOS EN ESPAÑOL (públicos para usar en controlador) ============
+    // ============ DICCIONARIOS EN ESPAÑOL ============
 
     public const GENRES_ES = [
         'Action' => 'Acción', 'Adventure' => 'Aventura', 'Comedy' => 'Comedia',
@@ -49,32 +52,49 @@ class JikanService
         'TV_SHORT' => 'Serie corta', 'MUSIC' => 'Música',
     ];
 
-    // ============ JIKAN (MyAnimeList) ============
+    // ============ JIKAN (con circuit breaker) ============
 
     protected function jikan(string $path, array $params = []): array
     {
+        if (Cache::get('jikan_down')) return [];
+
         try {
-            $response = Http::timeout(10)->retry(2, 1000)
+            $response = Http::timeout(4)->retry(1, 300)
                 ->get("{$this->baseUrl}{$path}", $params);
 
-            return $response->successful() ? ($response->json('data') ?? []) : [];
+            if (!$response->successful()) {
+                Cache::put('jikan_down', true, now()->addMinutes(10));
+                return [];
+            }
+
+            Cache::forget('jikan_down');
+            return $response->json('data') ?? [];
         } catch (\Exception $e) {
+            Cache::put('jikan_down', true, now()->addMinutes(10));
             Log::warning('Jikan falló: ' . $e->getMessage());
             return [];
         }
     }
 
-    // ============ ANILIST (respaldo automático) ============
+    // ============ ANILIST (con reintentos para 429) ============
 
     protected function anilist(string $query, array $variables = []): array
     {
         try {
-            $response = Http::timeout(15)->post($this->anilistUrl, [
-                'query' => $query,
-                'variables' => $variables,
-            ]);
+            for ($attempt = 0; $attempt < 3; $attempt++) {
+                $response = Http::timeout(15)->post($this->anilistUrl, [
+                    'query' => $query,
+                    'variables' => $variables,
+                ]);
 
-            return $response->successful() ? ($response->json('data') ?? []) : [];
+                if ($response->status() === 429) {
+                    sleep(2);
+                    continue;
+                }
+
+                return $response->successful() ? ($response->json('data') ?? []) : [];
+            }
+            return [];
         } catch (\Exception $e) {
             Log::warning('AniList falló: ' . $e->getMessage());
             return [];
@@ -121,72 +141,80 @@ class JikanService
         ];
     }
 
-    protected function anilistList(string $filter, array $variables, int $limit): array
+    // ============ LISTAS ANILIST CON PAGINACIÓN ============
+
+    protected function anilistList(string $filter, array $variables, int $limit, int $page = 1): array
     {
-        $q = "query(\$page:Int,\$perPage:Int){ Page(page:\$page,perPage:\$perPage){ media(type:ANIME{$filter}){ " . self::FIELDS . " } } }";
-        $res = $this->anilist($q, array_merge(['page' => 1, 'perPage' => $limit], $variables));
-        return collect($res['Page']['media'] ?? [])
-            ->map(fn($m) => $this->normalize($m))->all();
+        $q = "query(\$page:Int,\$perPage:Int){ Page(page:\$page,perPage:\$perPage){ pageInfo{ hasNextPage } media(type:ANIME{$filter}){ " . self::FIELDS . " } } }";
+        $res = $this->anilist($q, array_merge(['page' => $page, 'perPage' => $limit], $variables));
+        $media = $res['Page']['media'] ?? [];
+        $this->lastHasMore = $res['Page']['pageInfo']['hasNextPage'] ?? (count($media) >= $limit);
+        return collect($media)->map(fn($m) => $this->normalize($m))->all();
     }
 
-    // ============ BÚSQUEDA CON FILTROS (nueva versión) ============
+    // ============ BÚSQUEDA CON FILTROS (sin caché en paginación) ============
 
-    public function searchAnime(array $f, int $limit = 24): array
+    public function searchAnime(array $f, int $limit = 24, int $page = 1): array
     {
-        return $this->cached('search_' . md5(json_encode($f)), 1, function () use ($f, $limit) {
-            // Jikan (MyAnimeList)
-            $data = $this->jikan('/anime', array_filter([
-                'q' => $f['q'] ?? null,
-                'genres' => $f['genre_mal'] ?? null,
-                'type' => !empty($f['type']) ? strtolower($f['type']) : null,
-                'min_score' => ($f['min_score'] ?? 0) > 0 ? $f['min_score'] : null,
-                'order_by' => ($f['min_score'] ?? 0) > 0 ? 'score' : null,
-                'sort' => 'desc',
-                'sfw' => 'true',
-                'limit' => $limit,
-            ]));
-            if (!empty($data)) return $data;
+        // Jikan primero
+        $data = $this->jikan('/anime', array_filter([
+            'q' => $f['q'] ?? null,
+            'genres' => $f['genre_mal'] ?? null,
+            'type' => !empty($f['type']) ? strtolower($f['type']) : null,
+            'min_score' => ($f['min_score'] ?? 0) > 0 ? $f['min_score'] : null,
+            'order_by' => ($f['min_score'] ?? 0) > 0 ? 'score' : null,
+            'sort' => 'desc',
+            'sfw' => 'true',
+            'page' => $page,
+            'limit' => $limit,
+        ]));
 
-            // AniList (respaldo)
-            $decl = '$page:Int,$perPage:Int';
-            $vars = ['page' => 1, 'perPage' => $limit];
-            $filter = ', sort: ' . ((($f['min_score'] ?? 0) > 0) ? 'SCORE_DESC' : 'POPULARITY_DESC');
+        if (!empty($data)) return $data;
 
-            if (!empty($f['q'])) {
-                $decl .= ',$search:String';
-                $filter .= ', search: $search';
-                $vars['search'] = $f['q'];
-            }
-            if (!empty($f['genre_en'])) {
-                $decl .= ',$genre:String';
-                $filter .= ', genre: $genre';
-                $vars['genre'] = $f['genre_en'];
-            }
-            if (!empty($f['type'])) {
-                $decl .= ',$format:MediaFormat';
-                $filter .= ', format: $format';
-                $vars['format'] = $f['type'];
-            }
-            if (($f['min_score'] ?? 0) > 0) {
-                $decl .= ',$minScore:Int';
-                $filter .= ', averageScore_greater: $minScore';
-                $vars['minScore'] = (int) ($f['min_score'] * 10);
-            }
+        // AniList como respaldo con pageInfo.hasNextPage
+        $decl = '$page:Int,$perPage:Int';
+        $vars = ['page' => $page, 'perPage' => $limit];
+        $filter = ', sort: ' . ((($f['min_score'] ?? 0) > 0) ? 'SCORE_DESC' : 'POPULARITY_DESC');
 
-            $q = "query({$decl}){ Page(page:\$page,perPage:\$perPage){ media(type:ANIME{$filter}){ " . self::FIELDS . " } } }";
-            $res = $this->anilist($q, $vars);
+        if (!empty($f['q'])) {
+            $decl .= ',$search:String';
+            $filter .= ', search: $search';
+            $vars['search'] = $f['q'];
+        }
+        if (!empty($f['genre_en'])) {
+            $decl .= ',$genre:String';
+            $filter .= ', genre: $genre';
+            $vars['genre'] = $f['genre_en'];
+        }
+        if (!empty($f['type'])) {
+            $decl .= ',$format:MediaFormat';
+            $filter .= ', format: $format';
+            $vars['format'] = $f['type'];
+        }
+        if (($f['min_score'] ?? 0) > 0) {
+            $decl .= ',$minScore:Int';
+            $filter .= ', averageScore_greater: $minScore';
+            $vars['minScore'] = (int) ($f['min_score'] * 10);
+        }
 
-            return collect($res['Page']['media'] ?? [])
-                ->map(fn($m) => $this->normalize($m))->all();
-        });
+        $q = "query({$decl}){ Page(page:\$page,perPage:\$perPage){ pageInfo{ hasNextPage } media(type:ANIME{$filter}){ " . self::FIELDS . " } } }";
+        $res = $this->anilist($q, $vars);
+
+        $media = $res['Page']['media'] ?? [];
+        $this->lastHasMore = $res['Page']['pageInfo']['hasNextPage'] ?? (count($media) >= $limit);
+
+        return collect($media)->map(fn($m) => $this->normalize($m))->all();
     }
 
     public function getTopAnime(int $page = 1, int $limit = 24): array
     {
-        return $this->cached("top_{$page}", 6, function () use ($page, $limit) {
+        return $this->cached("top_{$page}", 1, function () use ($page, $limit) {
             $data = $this->jikan('/top/anime', ['page' => $page, 'limit' => $limit]);
-            return !empty($data) ? $data
-                : $this->anilistList(', sort: SCORE_DESC', [], $limit);
+            if (!empty($data)) {
+                $this->lastHasMore = count($data) >= $limit;
+                return $data;
+            }
+            return $this->anilistList(', sort: SCORE_DESC', [], $limit, $page);
         });
     }
 
@@ -238,7 +266,8 @@ class JikanService
             return $data;
         });
     }
-        /** Anime similares (Jikan → AniList fallback) */
+
+    /** Anime similares (Jikan → AniList fallback) */
     public function getRecommendations(int $malId, int $limit = 6): array
     {
         return $this->cached("recs_{$malId}", 24, function () use ($malId, $limit) {

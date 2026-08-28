@@ -12,8 +12,11 @@ class CatalogController extends Controller
     public function __construct(protected JikanService $jikan) {}
 
     /** Catálogo con filtros avanzados */
-    public function index(Request $request)
+        public function index(Request $request)
     {
+        $page = max(1, (int) $request->input('page', 1));
+        $perPage = 24;
+
         $filters = [
             'q' => $request->input('q', ''),
             'genre' => $request->input('genre', ''),
@@ -35,16 +38,27 @@ class CatalogController extends Controller
                 'genre_mal' => $genreEn ? (\App\Services\JikanService::GENRES_MAL[$genreEn] ?? null) : null,
                 'type' => $filters['type'] ?: null,
                 'min_score' => $filters['min_score'],
-            ]);
+            ], $perPage * $page);
         } else {
-            $animeList = $this->jikan->getTopAnime();
+            $animeList = $this->jikan->getTopAnime($page, $perPage * $page);
         }
 
-                return view('catalog.index', [
+                $hasMore = $this->jikan->lastHasMore;
+
+        if ($request->ajax()) {
+            return response()->json([
+                'html' => view('catalog._anime_grid', ['animeList' => $animeList])->render(),
+                'hasMore' => $hasMore,
+            ]);
+        }
+
+        return view('catalog.index', [
             'animeList' => $animeList,
             'query' => $filters['q'],
             'filters' => $filters,
-            'season' => $hasFilters ? [] : $this->jikan->getSeasonNow(12),
+            'hasMore' => $hasMore,
+            'page' => $page,
+            'season' => ($hasFilters || $page > 1) ? [] : $this->jikan->getSeasonNow(12),
         ]);
     }
 

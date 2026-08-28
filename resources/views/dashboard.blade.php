@@ -19,8 +19,8 @@
                     </a>
                 </div>
             @else
-                {{-- Tarjetas --}}
-                <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+                                {{-- Tarjetas --}}
+                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                     <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-5 text-center">
                         <p class="text-3xl font-bold text-indigo-600">{{ $stats['total'] }}</p>
                         <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">En lista</p>
@@ -38,10 +38,52 @@
                         <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Episodios</p>
                     </div>
                     <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-5 text-center">
+                        @php
+                            $h = intdiv($stats['minutes'], 60);
+                            $tiempo = $h >= 24 ? intdiv($h, 24) . 'd ' . ($h % 24) . 'h' : $h . 'h';
+                        @endphp
+                        <p class="text-3xl font-bold text-pink-500">{{ $tiempo }}</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Tiempo invertido</p>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-5 text-center">
                         <p class="text-3xl font-bold text-yellow-500">★ {{ $stats['avg_score'] }}</p>
                         <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Promedio</p>
                     </div>
                 </div>
+                                {{-- 📺 Continuar viendo --}}
+                @if($watching->isNotEmpty())
+                    <div class="mt-8 bg-white dark:bg-gray-800 rounded-xl shadow p-6">
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">📺 Continuar viendo</h3>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            @foreach($watching as $item)
+                                <div class="rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700">
+                                    <a href="{{ route('catalog.show', $item->anime->mal_id) }}">
+                                        <img src="{{ $item->anime->image_url }}" alt="{{ $item->anime->title }}"
+                                             class="w-full aspect-[2/3] object-cover">
+                                    </a>
+                                    <div class="p-3">
+                                        <p class="text-sm font-semibold text-gray-900 dark:text-white truncate">{{ $item->anime->title }}</p>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400">
+                                            Ep {{ $item->episodes_watched }}@if($item->anime->episodes_total) / {{ $item->anime->episodes_total }}@endif
+                                        </p>
+                                        @if($item->anime->episodes_total)
+                                            <div class="mt-1 h-1.5 rounded-full bg-gray-300 dark:bg-gray-600 overflow-hidden">
+                                                <div class="h-full" style="width: {{ $item->progressPercent() }}%; background: linear-gradient(90deg,#ec4899,#8b5cf6)"></div>
+                                            </div>
+                                        @endif
+                                        <form method="POST" action="{{ route('mylist.increment', $item) }}" class="mt-2">
+                                            @csrf
+                                            <button type="submit"
+                                                    class="w-full text-xs px-2 py-1 rounded bg-blue-600 text-white font-semibold hover:bg-blue-700">
+                                                +1 episodio
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
 
                 {{-- Gráficas --}}
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">

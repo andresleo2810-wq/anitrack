@@ -84,5 +84,70 @@
                 {{ $slot }}
             </main>
         </div>
+                {{-- 🎙️ Comando de voz global --}}
+        <div class="fixed bottom-4 left-4 z-50">
+            <button id="btn-voice-cmd" title='Di "Naruto ya lo vi"'
+                    class="w-14 h-14 rounded-full shadow-lg text-2xl text-white"
+                    style="background: linear-gradient(135deg, #ec4899, #8b5cf6)">🎙️</button>
+        </div>
+        <div id="voice-toast"
+             class="hidden fixed bottom-24 left-1/2 -translate-x-1/2 z-50 px-4 py-3 rounded-xl shadow-lg text-white text-sm"
+             style="background: #1a0b2e; border: 1px solid #22c55e"></div>
+
+        <script>
+        (function () {
+            const btn = document.getElementById('btn-voice-cmd');
+            const toast = document.getElementById('voice-toast');
+            const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SR || !btn) return;
+
+            const rec = new SR();
+            rec.lang = 'es-ES';
+
+            function showToast(msg, ok = true) {
+                toast.textContent = msg;
+                toast.style.borderColor = ok ? '#22c55e' : '#ef4444';
+                toast.classList.remove('hidden');
+                setTimeout(() => toast.classList.add('hidden'), 4000);
+            }
+
+            rec.onstart = () => { btn.textContent = '🔴'; showToast('🎙️ Te escucho... di "Naruto ya lo vi"'); };
+            rec.onend = () => { btn.textContent = '🎙️'; };
+
+            rec.onresult = async (e) => {
+                const texto = e.results[0][0].transcript.trim();
+
+                let m = texto.match(/^(.+?)\s+ya\s+(?:lo\s+|la\s+)?(?:vi|ví|he\s+visto)/i)
+                     || texto.match(/^ya\s+(?:vi|ví)\s+(.+)$/i)
+                     || texto.match(/^marcar\s+(.+?)\s+como\s+(?:visto|completado)/i);
+
+                if (!m) {
+                    showToast('No entendí. Prueba: "Naruto ya lo vi"', false);
+                    return;
+                }
+
+                const titulo = m[1].trim();
+                showToast('🔎 Buscando "' + titulo + '"...');
+
+                try {
+                    const res = await fetch("{{ route('mylist.voice') }}", {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify({ title: titulo })
+                    });
+                    const data = await res.json();
+                    showToast(data.message, data.ok);
+                } catch (err) {
+                    showToast('Error de conexión', false);
+                }
+            };
+
+            btn.onclick = () => rec.start();
+        })();
+        </script>
     </body>
 </html>

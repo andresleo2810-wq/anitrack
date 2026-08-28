@@ -12,7 +12,6 @@
             <form method="GET" action="{{ route('catalog.index') }}"
                   class="mb-8 bg-white dark:bg-gray-800 rounded-xl shadow p-4">
                 <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                    {{-- Input con micrófono de voz --}}
                     <div class="flex gap-2">
                         <input type="text" name="q" value="{{ $filters['q'] }}"
                                placeholder="Buscar anime... (o habla 🎤)"
@@ -50,9 +49,7 @@
                 </div>
             </form>
 
-            {{-- Grid de anime --}}
-            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                        {{-- 🌸 Anime de temporada --}}
+            {{-- 🌸 Anime de temporada (solo en la primera carga sin filtros) --}}
             @if(!empty($season))
                 <div class="mb-10">
                     <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">🌸 En emisión esta temporada</h3>
@@ -70,37 +67,39 @@
                         @endforeach
                     </div>
                 </div>
-            @endif    
-            @forelse($animeList as $anime)
-                <a href="{{ route('catalog.show', $anime['mal_id']) }}"
-                   class="group block bg-white dark:bg-gray-800 rounded-lg overflow-hidden shadow hover:shadow-lg transition">
-                    <div class="aspect-[2/3] overflow-hidden bg-gray-200 dark:bg-gray-700">
-                        <img src="{{ $anime['images']['jpg']['image_url'] }}"
-                             alt="{{ $anime['title'] }}"
-                             class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
-                    </div>
-                    <div class="p-3">
-                        <h3 class="text-sm font-semibold text-gray-900 dark:text-white truncate">
-                            {{ $anime['title'] }}
-                        </h3>
-                        <div class="mt-1 flex items-center justify-between text-xs">
-                            <span class="text-yellow-500 font-semibold">★ {{ $anime['score'] ?? 'N/A' }}</span>
-                            <span class="text-gray-500 dark:text-gray-400">{{ $anime['type'] ?? 'TV' }}</span>
-                        </div>
-                    </div>
-                </a>
-                @empty
-                <div class="col-span-full text-center py-12 text-gray-500 dark:text-gray-400">
+            @endif
+
+            {{-- Grid de resultados --}}
+            @if(count($animeList) > 0)
+                <div id="anime-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                    @include('catalog._anime_grid', ['animeList' => $animeList])
+                </div>
+                {{-- Centinela de scroll infinito --}}
+                <div id="load-sentinel" class="h-10"></div>
+                {{-- Botón cargar más --}}
+                <div class="text-center mt-8">
+                    <button id="btn-load-more"
+                            data-page="{{ $page }}"
+                            data-has-more="{{ $hasMore ? '1' : '0' }}"
+                            class="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold {{ !$hasMore ? 'hidden' : '' }}">
+                        ➕ Cargar más anime
+                    </button>
+                    @if(!$hasMore)
+                        <p class="text-sm text-gray-500 dark:text-gray-400">Has visto todos los resultados.</p>
+                    @endif
+                </div>
+            @else
+                <div class="text-center py-12 text-gray-500 dark:text-gray-400">
                     No se encontraron resultados. Intenta con otros criterios.
                 </div>
-                @endforelse
-            </div>
+            @endif
 
         </div>
     </div>
 
-    {{-- 🎤 Búsqueda por voz (Web Speech API) --}}
+    {{-- Scripts --}}
     <script>
+        // 🎤 Búsqueda por voz
         const btnVoz = document.getElementById('btn-voz');
         const inputQ = document.querySelector('input[name="q"]');
         const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -115,6 +114,66 @@
         } else if (btnVoz) {
             btnVoz.disabled = true;
             btnVoz.title = 'Tu navegador no soporta búsqueda por voz';
+        }
+
+                // ➕ Cargar más con ANTI-DUPLICADOS
+        const btnLoad = document.getElementById('btn-load-more');
+        const grid = document.getElementById('anime-grid');
+        const vistos = new Set();
+        if (grid) {
+            grid.querySelectorAll('[data-mal-id]').forEach(el => vistos.add(el.dataset.malId));
+        }
+
+        async function cargarPagina() {
+            if (!btnLoad || btnLoad.disabled || btnLoad.classList.contains('hidden')) return;
+            const page = parseInt(btnLoad.dataset.page) + 1;
+            btnLoad.disabled = true;
+            btnLoad.textContent = 'Cargando...';
+
+            const url = new URL(window.location.href);
+            url.searchParams.set('page', page);
+
+            try {
+                const res = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+
+                // Filtra duplicados antes de insertar
+                const tmp = document.createElement('div');
+                tmp.innerHTML = data.html;
+                let nuevos = 0;
+                tmp.querySelectorAll('[data-mal-id]').forEach(el => {
+                    if (!vistos.has(el.dataset.malId)) {
+                        vistos.add(el.dataset.malId);
+                        grid.appendChild(el);
+                        nuevos++;
+                    }
+                });
+
+                btnLoad.dataset.page = page;
+                btnLoad.disabled = false;
+                btnLoad.textContent = '➕ Cargar más anime';
+
+                if (!data.hasMore) {
+                    btnLoad.classList.add('hidden');
+                } else if (nuevos === 0) {
+                    cargarPagina(); // página de puros repetidos → salta a la siguiente
+                }
+            } catch (err) {
+                btnLoad.disabled = false;
+                btnLoad.textContent = '➕ Cargar más anime';
+            }
+        }
+
+        if (btnLoad) btnLoad.addEventListener('click', cargarPagina);
+
+        // ♾️ Scroll infinito
+        const sentinel = document.getElementById('load-sentinel');
+        if (sentinel) {
+            const io = new IntersectionObserver((entries) => {
+                if (entries[0].isIntersecting) cargarPagina();
+            }, { rootMargin: '600px' });
+            io.observe(sentinel);
         }
     </script>
 </x-app-layout>
