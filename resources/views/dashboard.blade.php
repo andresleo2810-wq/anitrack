@@ -19,7 +19,7 @@
                     </a>
                 </div>
             @else
-                                {{-- Tarjetas --}}
+                {{-- Tarjetas --}}
                 <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                     <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-5 text-center">
                         <p class="text-3xl font-bold text-indigo-600">{{ $stats['total'] }}</p>
@@ -50,7 +50,35 @@
                         <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Promedio</p>
                     </div>
                 </div>
-                                {{-- 📺 Continuar viendo --}}
+
+                {{-- 🎁 Botón al Recap anual --}}
+                <div class="mt-4 text-right">
+                    <a href="{{ route('recap') }}"
+                       class="inline-block px-4 py-2 rounded-lg text-white font-semibold shadow hover:opacity-90 transition"
+                       style="background: linear-gradient(135deg,#ec4899,#8b5cf6)">
+                        🎁 Tu recap {{ now()->year }}
+                    </a>
+                </div>
+
+                {{-- 🔔 Episodios nuevos --}}
+                @if(isset($avisos) && $avisos->isNotEmpty())
+                    <div class="mt-8 bg-gradient-to-r from-pink-600/20 to-purple-600/20 border border-pink-500/40 rounded-xl p-4">
+                        <h3 class="text-lg font-semibold text-pink-500 mb-3">🔔 Tienes episodios nuevos por ver</h3>
+                        <div class="space-y-2">
+                            @foreach($avisos as $av)
+                                <a href="{{ route('catalog.show', $av['mal_id']) }}" class="flex items-center gap-3 group">
+                                    <img src="{{ $av['image'] }}" class="w-8 h-12 object-cover rounded" alt="{{ $av['title'] }}">
+                                    <p class="text-sm text-gray-900 dark:text-white">
+                                        <span class="font-semibold group-hover:underline">{{ $av['title'] }}</span>
+                                        — {{ $av['texto'] }} 🎉
+                                    </p>
+                                </a>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
+
+                {{-- 📺 Continuar viendo --}}
                 @if($watching->isNotEmpty())
                     <div class="mt-8 bg-white dark:bg-gray-800 rounded-xl shadow p-6">
                         <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">📺 Continuar viendo</h3>
@@ -110,6 +138,40 @@
                         @endforeach
                     </div>
                 </div>
+
+                {{-- 📅 Calendario semanal --}}
+                @if(!empty($schedule) && count(array_filter($schedule)) > 0)
+                    <div class="mt-8 bg-white dark:bg-gray-800 rounded-xl shadow p-6">
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">📅 Esta semana en emisión</h3>
+                        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+                            @foreach($schedule as $dia => $animes)
+                                <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                                    <h4 class="font-semibold text-sm text-indigo-600 dark:text-pink-500 mb-2">{{ $dia }}</h4>
+                                    <div class="space-y-2">
+                                        @forelse($animes as $a)
+                                            <a href="{{ route('catalog.show', $a['mal_id']) }}"
+                                               class="flex items-center gap-2 group">
+                                                <img src="{{ $a['image_url'] }}"
+                                                     class="w-8 h-12 object-cover rounded"
+                                                     alt="{{ $a['title'] }}">
+                                                <div class="flex-1 min-w-0">
+                                                    <p class="text-xs font-medium text-gray-900 dark:text-white truncate group-hover:underline">
+                                                        {{ $a['title'] }}
+                                                    </p>
+                                                    @if($a['score'])
+                                                        <p class="text-xs text-yellow-500">★ {{ $a['score'] }}</p>
+                                                    @endif
+                                                </div>
+                                            </a>
+                                        @empty
+                                            <p class="text-xs text-gray-400 italic">Sin estrenos</p>
+                                        @endforelse
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
 
                 {{-- 🤖 Recomendaciones IA --}}
                 @if(isset($recommendations) && $recommendations->isNotEmpty())

@@ -44,7 +44,7 @@ class DashboardController extends Controller
             'dropped' => '#ef4444',
         ];
 
-        // 🤖 IA de recomendaciones: anime de tus géneros favoritos que NO has visto
+        // 🤖 IA de recomendaciones
         $topGenres = $byGenre->keys()->take(2)->values();
         $recommendations = collect();
 
@@ -61,6 +61,7 @@ class DashboardController extends Controller
                     ->values();
             }
         }
+
         $watching = UserAnime::where('user_id', auth()->id())
             ->where('status', 'watching')
             ->with('anime')
@@ -68,9 +69,79 @@ class DashboardController extends Controller
             ->take(4)
             ->get();
 
-               return view('dashboard', compact(
+        // 🔔 Avisos de episodios nuevos
+              // 🔔 Avisos de episodios nuevos
+        $avisos = collect();
+        $viendoTodo = UserAnime::where('user_id', auth()->id())
+            ->where('status', 'watching')->with('anime')->get();
+
+        $schedule = $this->jikan->getSchedule();
+        $idsSemana = collect($schedule)->flatten(1)->pluck('mal_id')->filter()->unique();
+
+        if ($viendoTodo->isNotEmpty()) {
+            $ids = $viendoTodo->pluck('anime.mal_id')->filter()->values()->all();
+            $latest = $this->jikan->getLatestAiredEpisodes($ids);
+
+            foreach ($viendoTodo as $w) {
+                $malId = $w->anime->mal_id;
+                $ep = $latest[$malId] ?? null;
+
+                if ($ep && $ep > $w->episodes_watched) {
+                    $avisos->push([
+                        'title' => $w->anime->title,
+                        'image' => $w->anime->image_url,
+                        'texto' => "¡el episodio {$ep} ya salió!",
+                        'mal_id' => $malId,
+                    ]);
+                } elseif ($idsSemana->contains($malId)) {
+                    $avisos->push([
+                        'title' => $w->anime->title,
+                        'image' => $w->anime->image_url,
+                        'texto' => '¡tiene episodio nuevo esta semana!',
+                        'mal_id' => $malId,
+                    ]);
+                }
+            }
+        }
+
+        return view('dashboard', compact(
             'stats', 'byStatus', 'byGenre', 'topRated',
-            'statusColors', 'recommendations', 'topGenres', 'watching'
+            'statusColors', 'recommendations', 'topGenres',
+            'watching', 'schedule', 'avisos'
         ));
-}
+    }
+        public function recap()
+    {
+        $year = now()->year;
+
+        $items = UserAnime::where('user_id', auth()->id())
+            ->whereYear('created_at', $year)
+            ->with('anime.genres')
+            ->get();
+
+        $scored = $items->filter(fn($i) => $i->score !== null);
+        $eps = $items->sum('episodes_watched');
+        $top = $items->sortByDesc('score')->first();
+        $genero = $items->flatMap(fn($i) => $i->anime->genres->pluck('name'))
+            ->countBy()->sortDesc()->keys()->first();
+
+        $porMes = $items->groupBy(fn($i) => $i->created_at->format('n'));
+        $mesNum = $porMes->sortByDesc(fn($g) => $g->count())->keys()->first();
+        $mes = $mesNum
+            ? ucfirst(\Carbon\Carbon::create()->month((int) $mesNum)->locale('es')->isoFormat('MMMM'))
+            : '—';
+
+        return view('recap', [
+            'year' => $year,
+            'items' => $items,
+            'eps' => $eps,
+            'horas' => round($eps * 24 / 60),
+            'top' => $top,
+            'genero' => $genero,
+            'mes' => $mes,
+            'mesCount' => $mesNum ? $porMes[$mesNum]->count() : 0,
+            'completados' => $items->where('status', 'completed')->count(),
+            'avg' => $scored->isNotEmpty() ? round($scored->avg('score'), 1) : 0,
+        ]);
+    }
 }

@@ -5,7 +5,6 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\CatalogController;
 use App\Http\Controllers\AnimeListController;
 
-
 Route::middleware(['auth'])->group(function () {
     Route::get('/catalog', [CatalogController::class, 'index'])->name('catalog.index');
     Route::get('/anime/{malId}', [CatalogController::class, 'show'])->name('catalog.show');
@@ -15,16 +14,15 @@ Route::middleware(['auth'])->group(function () {
     Route::put('/mylist/{userAnime}', [AnimeListController::class, 'update'])->name('mylist.update');
     Route::delete('/mylist/{userAnime}', [AnimeListController::class, 'destroy'])->name('mylist.destroy');
     Route::post('/mylist/{userAnime}/increment', [AnimeListController::class, 'increment'])->name('mylist.increment');
+    Route::post('/mylist/{userAnime}/rewatch', [AnimeListController::class, 'rewatch'])->name('mylist.rewatch');
     Route::post('/mylist/voice', [AnimeListController::class, 'voiceAdd'])->name('mylist.voice');
     Route::post('/mylist/import-mal', [AnimeListController::class, 'importMal'])->name('mylist.import');
     Route::get('/trash', [AnimeListController::class, 'trash'])->name('mylist.trash');
     Route::post('/mylist/{id}/restore', [AnimeListController::class, 'restore'])->name('mylist.restore');
     Route::delete('/mylist/{id}/force', [AnimeListController::class, 'forceDelete'])->name('mylist.force');
-        Route::post('/mylist/{userAnime}/rewatch', [AnimeListController::class, 'rewatch'])->name('mylist.rewatch');
-        Route::get('/mylist-export', [AnimeListController::class, 'export'])->name('mylist.export');
-    Route::post('/mylist-import-json', [AnimeListController::class, 'importJson'])->name('mylist.importJson');
     Route::get('/mylist-export', [AnimeListController::class, 'export'])->name('mylist.export');
-Route::post('/mylist-import-json', [AnimeListController::class, 'importJson'])->name('mylist.importJson');   
+    Route::post('/mylist-import-json', [AnimeListController::class, 'importJson'])->name('mylist.importJson');
+    Route::get('/recap', [App\Http\Controllers\DashboardController::class, 'recap'])->name('recap');
     });
 
 Route::get('/', function () {
@@ -43,3 +41,21 @@ Route::middleware('auth')->group(function () {
 });
 
 require __DIR__.'/auth.php';
+
+// 🔧 Diagnóstico temporal (borrar cuando el calendario funcione)
+Route::get('/debug-schedule', function () {
+    return response()->json(
+        array_map('count', app(\App\Services\JikanService::class)->getSchedule())
+    );
+})->middleware('auth');
+Route::get('/debug-avisos', function () {
+    $ids = \App\Models\UserAnime::where('user_id', auth()->id())
+        ->where('status', 'watching')
+        ->with('anime')->get()
+        ->pluck('anime.mal_id')->filter()->values()->all();
+
+    return response()->json([
+        'ids_en_viendo' => $ids,
+        'ultimos_episodios' => app(\App\Services\JikanService::class)->getLatestAiredEpisodes($ids),
+    ]);
+})->middleware('auth');

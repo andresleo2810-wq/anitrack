@@ -11,7 +11,7 @@ class JikanService
     protected string $baseUrl = 'https://api.jikan.moe/v4';
     protected string $anilistUrl = 'https://graphql.anilist.co';
 
-    /** ¿Hay más páginas después de la última consulta? (público para el controller) */
+    /** ¿Hay más páginas después de la última consulta? */
     public bool $lastHasMore = false;
 
     public function __construct(
@@ -152,11 +152,10 @@ class JikanService
         return collect($media)->map(fn($m) => $this->normalize($m))->all();
     }
 
-    // ============ BÚSQUEDA CON FILTROS (sin caché en paginación) ============
+    // ============ BÚSQUEDA Y TOP ============
 
     public function searchAnime(array $f, int $limit = 24, int $page = 1): array
     {
-        // Jikan primero
         $data = $this->jikan('/anime', array_filter([
             'q' => $f['q'] ?? null,
             'genres' => $f['genre_mal'] ?? null,
@@ -171,31 +170,14 @@ class JikanService
 
         if (!empty($data)) return $data;
 
-        // AniList como respaldo con pageInfo.hasNextPage
         $decl = '$page:Int,$perPage:Int';
         $vars = ['page' => $page, 'perPage' => $limit];
         $filter = ', sort: ' . ((($f['min_score'] ?? 0) > 0) ? 'SCORE_DESC' : 'POPULARITY_DESC');
 
-        if (!empty($f['q'])) {
-            $decl .= ',$search:String';
-            $filter .= ', search: $search';
-            $vars['search'] = $f['q'];
-        }
-        if (!empty($f['genre_en'])) {
-            $decl .= ',$genre:String';
-            $filter .= ', genre: $genre';
-            $vars['genre'] = $f['genre_en'];
-        }
-        if (!empty($f['type'])) {
-            $decl .= ',$format:MediaFormat';
-            $filter .= ', format: $format';
-            $vars['format'] = $f['type'];
-        }
-        if (($f['min_score'] ?? 0) > 0) {
-            $decl .= ',$minScore:Int';
-            $filter .= ', averageScore_greater: $minScore';
-            $vars['minScore'] = (int) ($f['min_score'] * 10);
-        }
+        if (!empty($f['q'])) { $decl .= ',$search:String'; $filter .= ', search: $search'; $vars['search'] = $f['q']; }
+        if (!empty($f['genre_en'])) { $decl .= ',$genre:String'; $filter .= ', genre: $genre'; $vars['genre'] = $f['genre_en']; }
+        if (!empty($f['type'])) { $decl .= ',$format:MediaFormat'; $filter .= ', format: $format'; $vars['format'] = $f['type']; }
+        if (($f['min_score'] ?? 0) > 0) { $decl .= ',$minScore:Int'; $filter .= ', averageScore_greater: $minScore'; $vars['minScore'] = (int) ($f['min_score'] * 10); }
 
         $q = "query({$decl}){ Page(page:\$page,perPage:\$perPage){ pageInfo{ hasNextPage } media(type:ANIME{$filter}){ " . self::FIELDS . " } } }";
         $res = $this->anilist($q, $vars);
@@ -290,6 +272,83 @@ class JikanService
                     'title' => $n['mediaRecommendation']['title']['romaji'] ?? null,
                     'image' => $n['mediaRecommendation']['coverImage']['large'] ?? null,
                 ])->filter(fn($r) => $r['mal_id'])->take($limit)->values()->all();
+        });
+    }
+
+    /** Calendario semanal (Jikan → AniList fallback) */
+    public function getSchedule(): array
+    {
+        $cacheado = Cache::get('schedule_week');
+        if ($cacheado !== null) return $cacheado;
+
+        $nombres = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
+        $resultado = array_fill_keys($nombres, []);
+
+        $dias = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+        $jikanOk = false;
+
+        foreach ($dias as $i => $dia) {
+            Cache::forget('jikan_down');
+            $data = $this->jikan("/schedules", ['filter' => $dia, 'limit' => 20]);
+            if (!empty($data)) $jikanOk = true;
+            $resultado[$nombres[$i]] = collect($data ?? [])
+                ->filter(fn($a) => !empty($a['mal_id']))
+                ->map(fn($a) => [
+                    'mal_id' => $a['mal_id'],
+                    'title' => $a['title'] ?? 'Sin título',
+                    'image_url' => $a['images']['jpg']['image_url'] ?? null,
+                    'score' => $a['score'] ?? null,
+                ])->take(12)->values()->all();
+            usleep(500000);
+        }
+
+        if (!$jikanOk) {
+            $q = 'query($ini:Int,$fin:Int){ Page(perPage:50){ airingSchedules(airingAt_greater:$ini, airingAt_lesser:$fin, sort:TIME){ airingAt media{ idMal title{ romaji } coverImage{ large } averageScore } } } }';
+            $res = $this->anilist($q, [
+                'ini' => now()->startOfWeek()->timestamp,
+                'fin' => now()->endOfWeek()->timestamp,
+            ]);
+
+            $resultado = array_fill_keys($nombres, []);
+            foreach ($res['Page']['airingSchedules'] ?? [] as $s) {
+                $m = $s['media'] ?? [];
+                if (empty($m['idMal'])) continue;
+
+                $dia = ucfirst(\Carbon\Carbon::createFromTimestamp($s['airingAt'])
+                    ->locale('es')->isoFormat('dddd'));
+
+                if (!isset($resultado[$dia]) || count($resultado[$dia]) >= 12) continue;
+
+                $resultado[$dia][] = [
+                    'mal_id' => $m['idMal'],
+                    'title' => $m['title']['romaji'] ?? 'Sin título',
+                    'image_url' => $m['coverImage']['large'] ?? null,
+                    'score' => $m['averageScore'] ? round($m['averageScore'] / 10, 1) : null,
+                ];
+            }
+        }
+
+        if (count(array_filter($resultado)) > 0) {
+            Cache::put('schedule_week', $resultado, now()->addHours(4));
+        }
+
+        return $resultado;
+    }
+        /** Último episodio emitido de cada anime (AniList) */
+    public function getLatestAiredEpisodes(array $malIds): array
+    {
+        if (empty($malIds)) return [];
+
+        return $this->cached('airing_' . md5(implode(',', $malIds)), 6, function () use ($malIds) {
+            $q = 'query($ids:[Int]){ Page(perPage:50){ media(idMal_in:$ids, type:ANIME){ idMal airingSchedule(notYetAired:false, perPage:1, sort:TIME_DESC){ nodes{ episode } } } } }';
+            $res = $this->anilist($q, ['ids' => $malIds]);
+
+            $out = [];
+            foreach ($res['Page']['media'] ?? [] as $m) {
+                $ep = $m['airingSchedule']['nodes'][0]['episode'] ?? null;
+                if ($m['idMal'] && $ep) $out[$m['idMal']] = $ep;
+            }
+            return $out;
         });
     }
 }

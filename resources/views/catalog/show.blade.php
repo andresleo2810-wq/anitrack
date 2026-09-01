@@ -63,7 +63,42 @@
                                 <span class="px-3 py-1 rounded-full bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">{{ $anime['status'] }}</span>
                             @endif
                         </div>
-
+                        {{-- ⚖️ Tu score vs comunidad --}}
+                        @if($userAnime && $userAnime->score && !empty($anime['score']))
+                            <div class="mt-4 bg-gray-100 dark:bg-gray-700/50 rounded-lg p-3">
+                                <p class="text-sm font-semibold text-gray-900 dark:text-white mb-2">⚖️ Tu opinión vs la comunidad</p>
+                                <div class="grid grid-cols-2 gap-4 text-sm">
+                                    <div>
+                                        <div class="flex justify-between text-xs mb-1">
+                                            <span class="text-gray-600 dark:text-gray-300">Comunidad</span>
+                                            <span class="font-semibold text-yellow-500">★ {{ $anime['score'] }}</span>
+                                        </div>
+                                        <div class="h-2 rounded-full bg-gray-300 dark:bg-gray-600 overflow-hidden">
+                                            <div class="h-full bg-yellow-400" style="width: {{ min(100, $anime['score'] * 10) }}%"></div>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div class="flex justify-between text-xs mb-1">
+                                            <span class="text-gray-600 dark:text-gray-300">Tú</span>
+                                            <span class="font-semibold text-pink-500">★ {{ $userAnime->score }}</span>
+                                        </div>
+                                        <div class="h-2 rounded-full bg-gray-300 dark:bg-gray-600 overflow-hidden">
+                                            <div class="h-full" style="width: {{ $userAnime->score * 10 }}%; background: linear-gradient(90deg,#ec4899,#8b5cf6)"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                @php $diff = round($userAnime->score - $anime['score'], 1); @endphp
+                                <p class="text-xs mt-2 text-gray-500 dark:text-gray-400">
+                                    @if($diff > 0.5)
+                                        💖 Te gustó {{ $diff }} puntos MÁS que a la comunidad
+                                    @elseif($diff < -0.5)
+                                        🤷 Te gustó {{ abs($diff) }} puntos MENOS que a la comunidad
+                                    @else
+                                        🤝 Opinión muy similar a la comunidad
+                                    @endif
+                                </p>
+                            </div>
+                        @endif
                         {{-- Géneros --}}
                         @if(!empty($anime['genres']))
                             <div class="mt-4 flex flex-wrap gap-2">
@@ -76,11 +111,16 @@
                             </div>
                         @endif
 
-                        {{-- Sinopsis --}}
+                                                {{-- Sinopsis con anti-spoiler --}}
                         @if(!empty($anime['synopsis']))
-                            <div class="mt-6">
+                            <div class="mt-6" id="sinopsis-box"
+                                 data-locked="{{ (!$userAnime || $userAnime->status !== 'completed') ? '1' : '0' }}">
                                 <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Sinopsis</h3>
-                                <p class="mt-2 text-gray-600 dark:text-gray-300 leading-relaxed">{{ $anime['synopsis'] }}</p>
+                                <p id="sinopsis-text" class="mt-2 text-gray-600 dark:text-gray-300 leading-relaxed">{{ $anime['synopsis'] }}</p>
+                                <button id="btn-spoiler" type="button"
+                                        class="mt-2 text-xs px-3 py-1 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 hidden">
+                                    👁️ Revelar sinopsis
+                                </button>
                             </div>
                         @endif
 
@@ -188,4 +228,23 @@
 
         </div>
     </div>
+        <script>
+    (function () {
+        const box = document.getElementById('sinopsis-box');
+        if (!box) return;
+        const activo = localStorage.getItem('antispoiler') === '1';
+        const locked = box.dataset.locked === '1';
+        const texto = document.getElementById('sinopsis-text');
+        const btn = document.getElementById('btn-spoiler');
+
+        if (activo && locked) {
+            texto.classList.add('blur-md', 'select-none');
+            btn.classList.remove('hidden');
+            btn.onclick = () => {
+                texto.classList.remove('blur-md', 'select-none');
+                btn.classList.add('hidden');
+            };
+        }
+    })();
+    </script>
 </x-app-layout>

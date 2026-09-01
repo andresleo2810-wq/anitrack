@@ -25,9 +25,22 @@
             </div>
 
             <!-- Selector de temas -->
-            <div class="hidden sm:flex sm:items-center sm:ms-6">
+                        <div class="hidden sm:flex sm:items-center sm:ms-6">
                 <x-theme-switcher />
+                <button id="btn-antispoiler" title="Modo anti-spoiler" class="ms-3 text-lg">🙈</button>
             </div>
+            <script>
+            (function () {
+                const b = document.getElementById('btn-antispoiler');
+                if (!b) return;
+                const pintar = () => b.style.opacity = localStorage.getItem('antispoiler') === '1' ? '1' : '0.35';
+                pintar();
+                b.onclick = () => {
+                    localStorage.setItem('antispoiler', localStorage.getItem('antispoiler') === '1' ? '0' : '1');
+                    pintar();
+                };
+            })();
+            </script>
 
             <!-- Settings Dropdown -->
             <div class="hidden sm:flex sm:items-center sm:ms-6">
