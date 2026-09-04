@@ -1,103 +1,154 @@
 <x-app-layout>
-    <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-            {{ __('Catálogo de Anime') }}
-        </h2>
-    </x-slot>
+    @php
+        $genres_es = \App\Services\JikanService::GENRES_ES;
+    @endphp
 
-    <div class="py-12">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+    <div class="mx-auto flex max-w-7xl flex-col gap-8">
 
-            {{-- Filtros avanzados --}}
-            <form method="GET" action="{{ route('catalog.index') }}"
-                  class="mb-8 bg-white dark:bg-gray-800 rounded-xl shadow p-4">
-                <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                    <div class="flex gap-2">
-                        <input type="text" name="q" value="{{ $filters['q'] }}"
-                               placeholder="Buscar anime... (o habla 🎤)"
-                               class="flex-1 rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
-                        <button type="button" id="btn-voz" title="Buscar por voz"
-                                class="px-3 rounded-lg bg-indigo-600 text-white hover:brightness-125">🎤</button>
-                    </div>
-                    <select name="genre" class="rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
-                        <option value="">Todos los géneros</option>
-                        @foreach(\App\Services\JikanService::GENRES_ES as $es)
-                            <option value="{{ $es }}" @selected($filters['genre'] === $es)>{{ $es }}</option>
-                        @endforeach
-                    </select>
-                    <select name="type" class="rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
-                        <option value="">Todos los tipos</option>
-                        <option value="TV" @selected($filters['type'] === 'TV')>TV</option>
-                        <option value="MOVIE" @selected($filters['type'] === 'MOVIE')>Película</option>
-                        <option value="OVA" @selected($filters['type'] === 'OVA')>OVA</option>
-                        <option value="ONA" @selected($filters['type'] === 'ONA')>ONA</option>
-                    </select>
-                    <select name="min_score" class="rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
-                        <option value="0">Cualquier puntuación</option>
-                        <option value="7" @selected($filters['min_score'] == 7)>7+</option>
-                        <option value="8" @selected($filters['min_score'] == 8)>8+</option>
-                        <option value="9" @selected($filters['min_score'] == 9)>9+</option>
-                    </select>
-                </div>
-                <div class="mt-3 flex gap-2">
-                    <button type="submit"
-                            class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold">
-                        🔍 Filtrar
+        {{-- HERO CATÁLOGO --}}
+        <section class="flex flex-col justify-between gap-6 lg:flex-row lg:items-center">
+            <div class="flex flex-col gap-3">
+                <p class="text-xs font-bold uppercase tracking-[0.25em] text-cyan-400">Explora el universo anime</p>
+                <h1 class="text-4xl font-extrabold tracking-tight text-white sm:text-5xl">
+                    Catálogo <span class="text-pink-400">✦</span>
+                </h1>
+                <p class="text-sm text-slate-500">Encuentra tu próxima obsesión. Busca, filtra, descubre.</p>
+            </div>
+        </section>
+
+        {{-- FILTROS GLASS --}}
+        <form method="GET" action="{{ route('catalog.index') }}"
+              class="rounded-3xl border border-slate-700/80 bg-slate-900/75 p-5 backdrop-blur-xl">
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-4">
+                {{-- Buscador + voz --}}
+                <div class="relative sm:col-span-1">
+                    <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-500">
+                        <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="m21 21-5.2-5.2M10 17a7 7 0 1 1 0-14 7 7 0 0 1 0 14Z"/></svg>
+                    </span>
+                    <input type="text" name="q" value="{{ $filters['q'] }}"
+                           placeholder="Buscar anime..."
+                           class="h-11 w-full rounded-2xl border border-[#273244] bg-[#111827]/80 pl-10 pr-10 text-sm text-slate-200 outline-none placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20">
+                    <button type="button" id="btn-voz" title="Buscar por voz" aria-label="Buscar por voz"
+                            class="absolute inset-y-0 right-1 flex size-9 items-center justify-center rounded-xl text-pink-400 transition hover:bg-pink-500/10">
+                        <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3ZM19 10v2a7 7 0 0 1-14 0v-2M12 19v3"/></svg>
                     </button>
-                    <a href="{{ route('catalog.index') }}"
-                       class="px-4 py-2 text-gray-500 dark:text-gray-400 hover:underline">Limpiar</a>
                 </div>
-            </form>
 
-            {{-- 🌸 Anime de temporada (solo en la primera carga sin filtros) --}}
-            @if(!empty($season))
-                <div class="mb-10">
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">🌸 En emisión esta temporada</h3>
-                    <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-4">
-                        @foreach($season as $anime)
-                            <a href="{{ route('catalog.show', $anime['mal_id']) }}"
-                               class="group block bg-white dark:bg-gray-800 rounded-lg overflow-hidden shadow hover:shadow-lg transition">
-                                <div class="aspect-[2/3] overflow-hidden bg-gray-200 dark:bg-gray-700">
-                                    <img src="{{ $anime['images']['jpg']['image_url'] }}"
-                                         alt="{{ $anime['title'] }}"
-                                         class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
-                                </div>
-                                <p class="p-2 text-xs font-semibold text-gray-900 dark:text-white truncate">{{ $anime['title'] }}</p>
-                            </a>
-                        @endforeach
+                {{-- Género --}}
+                <select name="genre" class="h-11 cursor-pointer rounded-2xl border border-[#273244] bg-[#111827]/80 px-3 text-sm text-slate-200 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20">
+                    <option value="">Todos los géneros</option>
+                    @foreach($genres_es as $es)
+                        <option value="{{ $es }}" @selected($filters['genre'] === $es)>{{ $es }}</option>
+                    @endforeach
+                </select>
+
+                {{-- Tipo --}}
+                <select name="type" class="h-11 cursor-pointer rounded-2xl border border-[#273244] bg-[#111827]/80 px-3 text-sm text-slate-200 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20">
+                    <option value="">Todos los tipos</option>
+                    <option value="TV" @selected($filters['type'] === 'TV')>TV</option>
+                    <option value="MOVIE" @selected($filters['type'] === 'MOVIE')>Película</option>
+                    <option value="OVA" @selected($filters['type'] === 'OVA')>OVA</option>
+                    <option value="ONA" @selected($filters['type'] === 'ONA')>ONA</option>
+                </select>
+
+                {{-- Puntuación mínima --}}
+                <select name="min_score" class="h-11 cursor-pointer rounded-2xl border border-[#273244] bg-[#111827]/80 px-3 text-sm text-slate-200 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20">
+                    <option value="0">Cualquier puntuación</option>
+                    <option value="7" @selected($filters['min_score'] == 7)>★ 7+</option>
+                    <option value="8" @selected($filters['min_score'] == 8)>★ 8+</option>
+                    <option value="9" @selected($filters['min_score'] == 9)>★ 9+</option>
+                </select>
+            </div>
+
+            <div class="mt-4 flex items-center gap-3">
+                <button type="submit"
+                        class="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-pink-500 to-violet-500 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-pink-500/20 transition hover:scale-[1.02] focus-visible:ring-2 focus-visible:ring-pink-400">
+                    <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m21 21-5.2-5.2M10 17a7 7 0 1 1 0-14 7 7 0 0 1 0 14Z"/></svg>
+                    Filtrar
+                </button>
+                <a href="{{ route('catalog.index') }}" class="text-sm text-slate-500 transition hover:text-slate-300">Limpiar filtros</a>
+            </div>
+        </form>
+
+        {{-- 🌸 TEMPORADA ACTUAL --}}
+        @if(!empty($season))
+            <section>
+                <div class="mb-6 flex items-end justify-between gap-4">
+                    <div>
+                        <div class="mb-2 inline-flex rounded-full border border-pink-400/20 bg-pink-400/10 px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-wider text-pink-300">
+                            🌸 En emisión
+                        </div>
+                        <h2 class="text-lg font-bold text-white">Esta temporada</h2>
+                        <p class="mt-1 text-xs text-slate-500">Los anime que están saliendo ahora mismo</p>
                     </div>
                 </div>
-            @endif
-
-            {{-- Grid de resultados --}}
-            @if(count($animeList) > 0)
-                <div id="anime-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                    @include('catalog._anime_grid', ['animeList' => $animeList])
+                <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+                    @foreach($season as $anime)
+                        <x-anime-card
+                            :mal-id="$anime['mal_id']"
+                            :title="$anime['title'] ?? 'Sin título'"
+                            :image="$anime['images']['jpg']['image_url'] ?? null"
+                            :score="$anime['score'] ?? null"
+                            :type="$anime['type'] ?? null"
+                        />
+                    @endforeach
                 </div>
-                {{-- Centinela de scroll infinito --}}
+            </section>
+        @endif
+
+        {{-- 🎯 RESULTADOS --}}
+        @if(count($animeList) > 0)
+            <section>
+                <div class="mb-6 flex items-end justify-between gap-4">
+                    <div>
+                        <h2 class="text-lg font-bold text-white">
+                            Resultados
+                            <span class="ml-2 font-mono text-sm text-slate-500">({{ count($animeList) }}{{ $hasMore ? '+' : '' }})</span>
+                        </h2>
+                        <p class="mt-1 text-xs text-slate-500">
+                            {{ $filters['q'] ? 'Búsqueda: "' . $filters['q'] . '"' : 'Explora todo el catálogo' }}
+                        </p>
+                    </div>
+                </div>
+
+                <div id="anime-grid" class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+                    @foreach($animeList as $anime)
+                        <div data-mal-id="{{ $anime['mal_id'] }}">
+                            <x-anime-card
+                                :mal-id="$anime['mal_id']"
+                                :title="$anime['title'] ?? 'Sin título'"
+                                :image="$anime['images']['jpg']['image_url'] ?? null"
+                                :score="$anime['score'] ?? null"
+                                :type="$anime['type'] ?? null"
+                            />
+                        </div>
+                    @endforeach
+                </div>
+
                 <div id="load-sentinel" class="h-10"></div>
-                {{-- Botón cargar más --}}
-                <div class="text-center mt-8">
+
+                <div class="mt-8 text-center">
                     <button id="btn-load-more"
                             data-page="{{ $page }}"
                             data-has-more="{{ $hasMore ? '1' : '0' }}"
-                            class="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold {{ !$hasMore ? 'hidden' : '' }}">
-                        ➕ Cargar más anime
+                            class="{{ !$hasMore ? 'hidden' : '' }} inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-cyan-500 to-violet-500 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-cyan-500/20 transition hover:scale-[1.02] focus-visible:ring-2 focus-visible:ring-cyan-400">
+                        <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14M5 12h14"/></svg>
+                        Cargar más anime
                     </button>
                     @if(!$hasMore)
-                        <p class="text-sm text-gray-500 dark:text-gray-400">Has visto todos los resultados.</p>
+                        <p class="text-sm text-slate-500">Has visto todos los resultados.</p>
                     @endif
                 </div>
-            @else
-                <div class="text-center py-12 text-gray-500 dark:text-gray-400">
-                    No se encontraron resultados. Intenta con otros criterios.
-                </div>
-            @endif
-
-        </div>
+            </section>
+        @else
+            <section class="rounded-3xl border border-slate-700/80 bg-slate-900/75 p-12 text-center backdrop-blur-xl">
+                <p class="text-5xl">🔍</p>
+                <h3 class="mt-4 text-lg font-bold text-white">No se encontraron resultados</h3>
+                <p class="mt-2 text-sm text-slate-500">Intenta con otros criterios o limpia los filtros.</p>
+            </section>
+        @endif
     </div>
 
-    {{-- Scripts --}}
     <script>
         // 🎤 Búsqueda por voz
         const btnVoz = document.getElementById('btn-voz');
@@ -107,22 +158,17 @@
         if (SR && btnVoz) {
             const rec = new SR();
             rec.lang = 'es-ES';
-            rec.onresult = (e) => { inputQ.value = e.results[0][0].transcript; };
-            rec.onstart = () => { btnVoz.textContent = '🔴'; };
-            rec.onend = () => { btnVoz.textContent = '🎤'; };
+            rec.onresult = (e) => { inputQ.value = e.results[0][0].transcript; inputQ.form.submit(); };
+            rec.onstart = () => { btnVoz.style.color = '#ef4444'; };
+            rec.onend = () => { btnVoz.style.color = ''; };
             btnVoz.onclick = () => rec.start();
-        } else if (btnVoz) {
-            btnVoz.disabled = true;
-            btnVoz.title = 'Tu navegador no soporta búsqueda por voz';
         }
 
-                // ➕ Cargar más con ANTI-DUPLICADOS
+        // ➕ Cargar más con ANTI-DUPLICADOS
         const btnLoad = document.getElementById('btn-load-more');
         const grid = document.getElementById('anime-grid');
         const vistos = new Set();
-        if (grid) {
-            grid.querySelectorAll('[data-mal-id]').forEach(el => vistos.add(el.dataset.malId));
-        }
+        if (grid) grid.querySelectorAll('[data-mal-id]').forEach(el => vistos.add(el.dataset.malId));
 
         async function cargarPagina() {
             if (!btnLoad || btnLoad.disabled || btnLoad.classList.contains('hidden')) return;
@@ -138,7 +184,6 @@
                 if (!res.ok) throw new Error('HTTP ' + res.status);
                 const data = await res.json();
 
-                // Filtra duplicados antes de insertar
                 const tmp = document.createElement('div');
                 tmp.innerHTML = data.html;
                 let nuevos = 0;
@@ -152,12 +197,13 @@
 
                 btnLoad.dataset.page = page;
                 btnLoad.disabled = false;
-                btnLoad.textContent = '➕ Cargar más anime';
+                btnLoad.innerHTML = '<svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14M5 12h14"/></svg> Cargar más anime';
+                btnLoad.className = btnLoad.className.replace('hidden', '').trim();
 
                 if (!data.hasMore) {
                     btnLoad.classList.add('hidden');
                 } else if (nuevos === 0) {
-                    cargarPagina(); // página de puros repetidos → salta a la siguiente
+                    cargarPagina();
                 }
             } catch (err) {
                 btnLoad.disabled = false;
@@ -167,7 +213,6 @@
 
         if (btnLoad) btnLoad.addEventListener('click', cargarPagina);
 
-        // ♾️ Scroll infinito
         const sentinel = document.getElementById('load-sentinel');
         if (sentinel) {
             const io = new IntersectionObserver((entries) => {

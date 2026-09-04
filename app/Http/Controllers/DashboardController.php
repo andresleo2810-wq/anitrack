@@ -48,17 +48,21 @@ class DashboardController extends Controller
         $topGenres = $byGenre->keys()->take(2)->values();
         $recommendations = collect();
 
-        if ($topGenres->isNotEmpty()) {
+               if ($topGenres->isNotEmpty()) {
             $genreEn = array_search($topGenres->first(), JikanService::GENRES_ES, true) ?: null;
 
             if ($genreEn) {
-                $recommendations = collect($this->jikan->searchAnime([
-                        'genre_en' => $genreEn,
-                        'min_score' => 8,
-                    ]))
-                    ->whereNotIn('mal_id', $items->pluck('anime.mal_id'))
-                    ->take(6)
-                    ->values();
+                $recommendations = \Illuminate\Support\Facades\Cache::remember(
+                    'recs_dash_' . $genreEn,
+                    now()->addHours(6),
+                    fn() => collect($this->jikan->searchAnime([
+                            'genre_en' => $genreEn,
+                            'min_score' => 8,
+                        ]))
+                        ->whereNotIn('mal_id', $items->pluck('anime.mal_id'))
+                        ->take(6)
+                        ->values()
+                );
             }
         }
 

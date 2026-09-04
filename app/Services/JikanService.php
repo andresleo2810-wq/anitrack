@@ -59,7 +59,7 @@ class JikanService
         if (Cache::get('jikan_down')) return [];
 
         try {
-            $response = Http::timeout(4)->retry(1, 300)
+            $response = Http::timeout(3)
                 ->get("{$this->baseUrl}{$path}", $params);
 
             if (!$response->successful()) {
@@ -275,7 +275,7 @@ class JikanService
         });
     }
 
-    /** Calendario semanal (Jikan → AniList fallback) */
+        /** Calendario semanal rápido: 1 prueba Jikan → si falla, AniList directo */
     public function getSchedule(): array
     {
         $cacheado = Cache::get('schedule_week');
@@ -283,33 +283,34 @@ class JikanService
 
         $nombres = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
         $resultado = array_fill_keys($nombres, []);
-
         $dias = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
-        $jikanOk = false;
 
-        foreach ($dias as $i => $dia) {
-            Cache::forget('jikan_down');
-            $data = $this->jikan("/schedules", ['filter' => $dia, 'limit' => 20]);
-            if (!empty($data)) $jikanOk = true;
-            $resultado[$nombres[$i]] = collect($data ?? [])
-                ->filter(fn($a) => !empty($a['mal_id']))
-                ->map(fn($a) => [
-                    'mal_id' => $a['mal_id'],
-                    'title' => $a['title'] ?? 'Sin título',
-                    'image_url' => $a['images']['jpg']['image_url'] ?? null,
-                    'score' => $a['score'] ?? null,
-                ])->take(12)->values()->all();
-            usleep(500000);
-        }
+        $map = fn($data) => collect($data ?? [])
+            ->filter(fn($a) => !empty($a['mal_id']))
+            ->map(fn($a) => [
+                'mal_id' => $a['mal_id'],
+                'title' => $a['title'] ?? 'Sin título',
+                'image_url' => $a['images']['jpg']['image_url'] ?? null,
+                'score' => $a['score'] ?? null,
+            ])->take(12)->values()->all();
 
-        if (!$jikanOk) {
+        // 1 sola prueba con Jikan (lunes). Si responde, consulta el resto.
+        $probe = $this->jikan('/schedules', ['filter' => 'monday', 'limit' => 20]);
+
+        if (!empty($probe)) {
+            $resultado['Lunes'] = $map($probe);
+            foreach ($dias as $i => $dia) {
+                if ($i === 0) continue;
+                $resultado[$nombres[$i]] = $map($this->jikan('/schedules', ['filter' => $dia, 'limit' => 20]));
+            }
+        } else {
+            // AniList: toda la semana en 1 sola consulta
             $q = 'query($ini:Int,$fin:Int){ Page(perPage:50){ airingSchedules(airingAt_greater:$ini, airingAt_lesser:$fin, sort:TIME){ airingAt media{ idMal title{ romaji } coverImage{ large } averageScore } } } }';
             $res = $this->anilist($q, [
                 'ini' => now()->startOfWeek()->timestamp,
                 'fin' => now()->endOfWeek()->timestamp,
             ]);
 
-            $resultado = array_fill_keys($nombres, []);
             foreach ($res['Page']['airingSchedules'] ?? [] as $s) {
                 $m = $s['media'] ?? [];
                 if (empty($m['idMal'])) continue;
