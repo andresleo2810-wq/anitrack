@@ -149,34 +149,58 @@ class JikanService
         $res = $this->anilist($q, array_merge(['page' => $page, 'perPage' => $limit], $variables));
         $media = $res['Page']['media'] ?? [];
         $this->lastHasMore = $res['Page']['pageInfo']['hasNextPage'] ?? (count($media) >= $limit);
-        return collect($media)->map(fn($m) => $this->normalize($m))->all();
+        return $this->mapAnilist($media);
     }
 
-    // ============ BÚSQUEDA Y TOP ============
-
-    public function searchAnime(array $f, int $limit = 24, int $page = 1): array
+       public function searchAnime(array $f, int $limit = 24, int $page = 1): array
     {
-        $data = $this->jikan('/anime', array_filter([
-            'q' => $f['q'] ?? null,
-            'genres' => $f['genre_mal'] ?? null,
-            'type' => !empty($f['type']) ? strtolower($f['type']) : null,
-            'min_score' => ($f['min_score'] ?? 0) > 0 ? $f['min_score'] : null,
-            'order_by' => ($f['min_score'] ?? 0) > 0 ? 'score' : null,
-            'sort' => 'desc',
-            'sfw' => 'true',
-            'page' => $page,
-            'limit' => $limit,
-        ]));
+        $hasExclude = !empty($f['exclude_en']);
 
-        if (!empty($data)) return $data;
+        $orderMap = [
+            'score' => ['order_by' => 'score', 'sort' => 'desc'],
+            'popularity' => ['order_by' => 'members', 'sort' => 'desc'],
+            'title' => ['order_by' => 'title', 'sort' => 'asc'],
+            'recent' => ['order_by' => 'start_date', 'sort' => 'desc'],
+        ];
+        $ord = $orderMap[$f['order'] ?? ''] ?? ((($f['min_score'] ?? 0) > 0) ? $orderMap['score'] : null);
 
+        // Jikan (no soporta excluir género)
+        if (!$hasExclude) {
+            $data = $this->jikan('/anime', array_filter([
+                'q' => $f['q'] ?? null,
+                'genres' => $f['genre_mal'] ?? null,
+                'type' => !empty($f['type']) ? strtolower($f['type']) : null,
+                'status' => $f['status'] ?? null,
+                'season' => $f['season'] ?? null,
+                'letter' => $f['letter'] ?? null,
+                'min_score' => ($f['min_score'] ?? 0) > 0 ? $f['min_score'] : null,
+                'order_by' => $ord['order_by'] ?? null,
+                'sort' => $ord['sort'] ?? 'desc',
+                'sfw' => 'true',
+                'page' => $page,
+                'limit' => $limit,
+            ]));
+            if (!empty($data)) return $data;
+        }
+
+        // AniList fallback (soporta excluir género)
         $decl = '$page:Int,$perPage:Int';
         $vars = ['page' => $page, 'perPage' => $limit];
-        $filter = ', sort: ' . ((($f['min_score'] ?? 0) > 0) ? 'SCORE_DESC' : 'POPULARITY_DESC');
+        $filter = '';
+
+        $sortMap = ['score' => 'SCORE_DESC', 'popularity' => 'POPULARITY_DESC', 'title' => 'TITLE_ROMAJI', 'recent' => 'START_DATE_DESC'];
+        $filter .= ', sort: ' . ($sortMap[$f['order'] ?? ''] ?? (((($f['min_score'] ?? 0) > 0) ? 'SCORE_DESC' : 'POPULARITY_DESC')));
 
         if (!empty($f['q'])) { $decl .= ',$search:String'; $filter .= ', search: $search'; $vars['search'] = $f['q']; }
         if (!empty($f['genre_en'])) { $decl .= ',$genre:String'; $filter .= ', genre: $genre'; $vars['genre'] = $f['genre_en']; }
+        if ($hasExclude) { $decl .= ',$exg:String'; $filter .= ', genre_not_in: [$exg]'; $vars['exg'] = $f['exclude_en']; }
         if (!empty($f['type'])) { $decl .= ',$format:MediaFormat'; $filter .= ', format: $format'; $vars['format'] = $f['type']; }
+        if (!empty($f['status'])) {
+            $decl .= ',$status:MediaStatus';
+            $filter .= ', status: $status';
+            $vars['status'] = ['airing' => 'RELEASING', 'complete' => 'FINISHED', 'upcoming' => 'NOT_YET_RELEASED'][$f['status']] ?? 'FINISHED';
+        }
+        if (!empty($f['season'])) { $decl .= ',$season:MediaSeason'; $filter .= ', season: $season'; $vars['season'] = strtoupper($f['season']); }
         if (($f['min_score'] ?? 0) > 0) { $decl .= ',$minScore:Int'; $filter .= ', averageScore_greater: $minScore'; $vars['minScore'] = (int) ($f['min_score'] * 10); }
 
         $q = "query({$decl}){ Page(page:\$page,perPage:\$perPage){ pageInfo{ hasNextPage } media(type:ANIME{$filter}){ " . self::FIELDS . " } } }";
@@ -185,19 +209,23 @@ class JikanService
         $media = $res['Page']['media'] ?? [];
         $this->lastHasMore = $res['Page']['pageInfo']['hasNextPage'] ?? (count($media) >= $limit);
 
-        return collect($media)->map(fn($m) => $this->normalize($m))->all();
+        return $this->mapAnilist($media);
     }
 
     public function getTopAnime(int $page = 1, int $limit = 24): array
     {
-        return $this->cached("top_{$page}", 1, function () use ($page, $limit) {
-            $data = $this->jikan('/top/anime', ['page' => $page, 'limit' => $limit]);
+        $data = $this->cached("top_{$page}", 1, function () use ($page, $limit) {
+            $data = $this->jikan('/top/anime', ['page' => $page, 'limit' => min($limit, 25)]);
             if (!empty($data)) {
-                $this->lastHasMore = count($data) >= $limit;
                 return $data;
             }
             return $this->anilistList(', sort: SCORE_DESC', [], $limit, $page);
         });
+
+        // ✅ Siempre se calcula, venga de caché o de la API
+        $this->lastHasMore = count($data) >= $limit;
+
+        return $data;
     }
 
     public function getAnimeById(int $malId): ?array
@@ -227,16 +255,13 @@ class JikanService
             $data = $this->jikan('/seasons/now', ['limit' => $limit]);
             if (!empty($data)) return $data;
 
-            $month = now()->month;
-            $season = match (true) {
-                $month <= 3 => 'WINTER',
-                $month <= 6 => 'SPRING',
-                $month <= 9 => 'SUMMER',
-                default => 'FALL',
-            };
-            return $this->anilistList(', season: $season, seasonYear: $year', [
-                'season' => $season, 'year' => now()->year,
-            ], $limit);
+            $q = 'query($page:Int,$perPage:Int){ Page(page:$page,perPage:$perPage){ pageInfo{ hasNextPage } media(type:ANIME, status:RELEASING, sort:POPULARITY_DESC){ ' . self::FIELDS . ' } } }';
+            $res = $this->anilist($q, ['page' => 1, 'perPage' => $limit]);
+
+            $media = $res['Page']['media'] ?? [];
+            $this->lastHasMore = $res['Page']['pageInfo']['hasNextPage'] ?? false;
+
+            return $this->mapAnilist($media);
         });
     }
 
@@ -275,7 +300,7 @@ class JikanService
         });
     }
 
-        /** Calendario semanal rápido: 1 prueba Jikan → si falla, AniList directo */
+    /** Calendario semanal rápido: 1 prueba Jikan → si falla, AniList directo */
     public function getSchedule(): array
     {
         $cacheado = Cache::get('schedule_week');
@@ -335,7 +360,8 @@ class JikanService
 
         return $resultado;
     }
-        /** Último episodio emitido de cada anime (AniList) */
+
+    /** Último episodio emitido de cada anime (AniList) */
     public function getLatestAiredEpisodes(array $malIds): array
     {
         if (empty($malIds)) return [];
@@ -351,5 +377,59 @@ class JikanService
             }
             return $out;
         });
+    }
+
+    /** 🔥 Populares por miembros (Jikan → AniList) */
+    public function getPopular(int $limit = 24): array
+    {
+        return $this->cached('popular_top', 2, function () use ($limit) {
+            $data = $this->jikan('/anime', ['order_by' => 'members', 'sort' => 'desc', 'limit' => min($limit, 25)]);
+            if (!empty($data)) return $data;
+
+            $q = 'query($n:Int){ Page(page:1, perPage:$n){ media(type:ANIME, sort:POPULARITY_DESC){ idMal title{ romaji } coverImage{ large } averageScore format } } }';
+            return $this->mapAnilist($this->anilist($q, ['n' => $limit])['Page']['media'] ?? []);
+        });
+    }
+
+    /** 📅 Próxima temporada (Jikan → AniList) */
+    public function getSeasonUpcoming(int $limit = 24): array
+    {
+        return $this->cached('upcoming_season', 6, function () use ($limit) {
+            $data = $this->jikan('/seasons/upcoming', ['limit' => min($limit, 25)]);
+            if (!empty($data)) return $data;
+
+            $q = 'query($n:Int){ Page(page:1, perPage:$n){ media(type:ANIME, status:NOT_YET_RELEASED, sort:POPULARITY_DESC){ idMal title{ romaji } coverImage{ large } averageScore format } } }';
+            return $this->mapAnilist($this->anilist($q, ['n' => $limit])['Page']['media'] ?? []);
+        });
+    }
+
+    /** 🗓️ Mejores de un año (Jikan → AniList) */
+    public function getByYear(int $year, int $limit = 24): array
+    {
+        return $this->cached("year_{$year}", 6, function () use ($year, $limit) {
+            $data = $this->jikan('/anime', [
+                'start_date' => "{$year}-01-01",
+                'end_date' => "{$year}-12-31",
+                'order_by' => 'score',
+                'sort' => 'desc',
+                'limit' => min($limit, 25),
+            ]);
+            if (!empty($data)) return $data;
+
+            $q = 'query($n:Int,$y:Int){ Page(page:1, perPage:$n){ media(type:ANIME, seasonYear:$y, sort:SCORE_DESC){ idMal title{ romaji } coverImage{ large } averageScore format } } }';
+            return $this->mapAnilist($this->anilist($q, ['n' => $limit, 'y' => $year])['Page']['media'] ?? []);
+        });
+    }
+
+    /** Normaliza media de AniList al formato Jikan que usan las vistas */
+    protected function mapAnilist(array $media): array
+    {
+        return collect($media)->map(fn($m) => [
+            'mal_id' => $m['idMal'],
+            'title' => $m['title']['romaji'] ?? 'Sin título',
+            'images' => ['jpg' => ['image_url' => $m['coverImage']['large'] ?? null]],
+            'score' => $m['averageScore'] ? round($m['averageScore'] / 10, 1) : null,
+            'type' => self::FORMAT_ES[$m['format'] ?? ''] ?? ($m['format'] ?? 'TV'),
+        ])->filter(fn($a) => !empty($a['mal_id']))->values()->all();
     }
 }

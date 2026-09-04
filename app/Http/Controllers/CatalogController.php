@@ -11,39 +11,63 @@ class CatalogController extends Controller
 {
     public function __construct(protected JikanService $jikan) {}
 
-    /** Catálogo con filtros avanzados */
-        public function index(Request $request)
+    /** Catálogo con filtros + tabs de modo + año */
+    public function index(Request $request)
     {
         $page = max(1, (int) $request->input('page', 1));
         $perPage = 24;
 
-        $filters = [
+                $filters = [
             'q' => $request->input('q', ''),
             'genre' => $request->input('genre', ''),
             'type' => $request->input('type', ''),
             'min_score' => (float) $request->input('min_score', 0),
+            'mode' => $request->input('mode', 'top'),
+            'year' => (int) $request->input('year', 0),
+            'status' => $request->input('status', ''),
+            'season' => $request->input('season', ''),
+            'letter' => $request->input('letter', ''),
+            'order' => $request->input('order', ''),
+            'exclude' => $request->input('exclude', ''),
         ];
 
         $hasFilters = $filters['q'] !== '' || $filters['genre'] !== ''
-            || $filters['type'] !== '' || $filters['min_score'] > 0;
+            || $filters['type'] !== '' || $filters['min_score'] > 0
+            || $filters['status'] !== '' || $filters['season'] !== ''
+            || $filters['letter'] !== '' || $filters['order'] !== ''
+            || $filters['exclude'] !== '';
 
         if ($hasFilters) {
             $genreEn = $filters['genre'] !== ''
-                ? (array_search($filters['genre'], \App\Services\JikanService::GENRES_ES, true) ?: null)
+                ? (array_search($filters['genre'], JikanService::GENRES_ES, true) ?: null)
                 : null;
 
             $animeList = $this->jikan->searchAnime([
                 'q' => $filters['q'] ?: null,
                 'genre_en' => $genreEn,
-                'genre_mal' => $genreEn ? (\App\Services\JikanService::GENRES_MAL[$genreEn] ?? null) : null,
+                'genre_mal' => $genreEn ? (JikanService::GENRES_MAL[$genreEn] ?? null) : null,
                 'type' => $filters['type'] ?: null,
                 'min_score' => $filters['min_score'],
-            ], $perPage * $page);
-        } else {
-            $animeList = $this->jikan->getTopAnime($page, $perPage * $page);
-        }
+                'status' => $filters['status'] ?: null,
+                'season' => $filters['season'] ?: null,
+                'letter' => $filters['letter'] ?: null,
+                'order' => $filters['order'] ?: null,
+                'exclude_en' => $filters['exclude'] ?: null,
+            ], $perPage, $page);
 
-                $hasMore = $this->jikan->lastHasMore;
+            $hasMore = $this->jikan->lastHasMore;
+        } elseif ($filters['year'] > 0) {
+            $animeList = $this->jikan->getByYear($filters['year']);
+            $hasMore = false;
+        } else {
+            $animeList = match ($filters['mode']) {
+                'popular' => $this->jikan->getPopular($perPage),
+                'airing' => $this->jikan->getSeasonNow($perPage),
+                'upcoming' => $this->jikan->getSeasonUpcoming($perPage),
+                default => $this->jikan->getTopAnime($page, $perPage),
+            };
+            $hasMore = $filters['mode'] === 'top' ? $this->jikan->lastHasMore : false;
+        }
 
         if ($request->ajax()) {
             return response()->json([
@@ -58,7 +82,6 @@ class CatalogController extends Controller
             'filters' => $filters,
             'hasMore' => $hasMore,
             'page' => $page,
-            'season' => ($hasFilters || $page > 1) ? [] : $this->jikan->getSeasonNow(12),
         ]);
     }
 
@@ -78,10 +101,10 @@ class CatalogController extends Controller
                 ->where('anime_id', $local->id)->first();
         }
 
-                return view('catalog.show', [
+        return view('catalog.show', [
             'anime' => $anime,
             'userAnime' => $userAnime,
             'similar' => $this->jikan->getRecommendations($malId),
-        ]);;
+        ]);
     }
 }

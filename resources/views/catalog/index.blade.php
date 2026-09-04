@@ -1,8 +1,4 @@
 <x-app-layout>
-    @php
-        $genres_es = \App\Services\JikanService::GENRES_ES;
-    @endphp
-
     <div class="mx-auto flex max-w-7xl flex-col gap-8">
 
         {{-- HERO CATÁLOGO --}}
@@ -19,14 +15,13 @@
         {{-- FILTROS GLASS --}}
         <form method="GET" action="{{ route('catalog.index') }}"
               class="rounded-3xl border border-slate-700/80 bg-slate-900/75 p-5 backdrop-blur-xl">
-            <div class="grid grid-cols-1 gap-3 sm:grid-cols-4">
-                {{-- Buscador + voz --}}
-                <div class="relative sm:col-span-1">
+            {{-- Filtros básicos --}}
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                <div class="relative">
                     <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-500">
                         <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="m21 21-5.2-5.2M10 17a7 7 0 1 1 0-14 7 7 0 0 1 0 14Z"/></svg>
                     </span>
-                    <input type="text" name="q" value="{{ $filters['q'] }}"
-                           placeholder="Buscar anime..."
+                    <input type="text" name="q" value="{{ $filters['q'] }}" placeholder="Buscar anime..."
                            class="h-11 w-full rounded-2xl border border-[#273244] bg-[#111827]/80 pl-10 pr-10 text-sm text-slate-200 outline-none placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20">
                     <button type="button" id="btn-voz" title="Buscar por voz" aria-label="Buscar por voz"
                             class="absolute inset-y-0 right-1 flex size-9 items-center justify-center rounded-xl text-pink-400 transition hover:bg-pink-500/10">
@@ -34,16 +29,14 @@
                     </button>
                 </div>
 
-                {{-- Género --}}
-                <select name="genre" class="h-11 cursor-pointer rounded-2xl border border-[#273244] bg-[#111827]/80 px-3 text-sm text-slate-200 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20">
+                <select name="genre" class="h-11 cursor-pointer rounded-2xl border border-[#273244] bg-[#111827]/80 px-3 text-sm text-slate-200 outline-none focus:border-cyan-400">
                     <option value="">Todos los géneros</option>
-                    @foreach($genres_es as $es)
+                    @foreach(\App\Services\JikanService::GENRES_ES as $es)
                         <option value="{{ $es }}" @selected($filters['genre'] === $es)>{{ $es }}</option>
                     @endforeach
                 </select>
 
-                {{-- Tipo --}}
-                <select name="type" class="h-11 cursor-pointer rounded-2xl border border-[#273244] bg-[#111827]/80 px-3 text-sm text-slate-200 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20">
+                <select name="type" class="h-11 cursor-pointer rounded-2xl border border-[#273244] bg-[#111827]/80 px-3 text-sm text-slate-200 outline-none focus:border-cyan-400">
                     <option value="">Todos los tipos</option>
                     <option value="TV" @selected($filters['type'] === 'TV')>TV</option>
                     <option value="MOVIE" @selected($filters['type'] === 'MOVIE')>Película</option>
@@ -51,13 +44,74 @@
                     <option value="ONA" @selected($filters['type'] === 'ONA')>ONA</option>
                 </select>
 
-                {{-- Puntuación mínima --}}
-                <select name="min_score" class="h-11 cursor-pointer rounded-2xl border border-[#273244] bg-[#111827]/80 px-3 text-sm text-slate-200 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20">
+                <select name="min_score" class="h-11 cursor-pointer rounded-2xl border border-[#273244] bg-[#111827]/80 px-3 text-sm text-slate-200 outline-none focus:border-cyan-400">
                     <option value="0">Cualquier puntuación</option>
                     <option value="7" @selected($filters['min_score'] == 7)>★ 7+</option>
                     <option value="8" @selected($filters['min_score'] == 8)>★ 8+</option>
                     <option value="9" @selected($filters['min_score'] == 9)>★ 9+</option>
                 </select>
+
+                <select name="year" class="h-11 cursor-pointer rounded-2xl border border-[#273244] bg-[#111827]/80 px-3 text-sm text-slate-200 outline-none focus:border-cyan-400">
+                    <option value="">Todos los años</option>
+                    @for($y = now()->year; $y >= 1990; $y--)
+                        <option value="{{ $y }}" @selected($filters['year'] === $y)>{{ $y }}</option>
+                    @endfor
+                </select>
+            </div>
+
+            {{-- ⚙️ Filtros avanzados (colapsables) --}}
+            <details class="mt-4">
+                <summary class="cursor-pointer font-mono text-xs font-bold uppercase tracking-wider text-cyan-400 hover:text-cyan-300">
+                    ⚙️ Filtros avanzados
+                </summary>
+                <div class="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-5">
+                    <select name="status" class="h-11 cursor-pointer rounded-2xl border border-[#273244] bg-[#111827]/80 px-3 text-sm text-slate-200 outline-none focus:border-cyan-400">
+                        <option value="">Todos los estados</option>
+                        <option value="airing" @selected($filters['status'] === 'airing')>En emisión</option>
+                        <option value="complete" @selected($filters['status'] === 'complete')>Finalizado</option>
+                        <option value="upcoming" @selected($filters['status'] === 'upcoming')>Próximamente</option>
+                    </select>
+
+                    <select name="season" class="h-11 cursor-pointer rounded-2xl border border-[#273244] bg-[#111827]/80 px-3 text-sm text-slate-200 outline-none focus:border-cyan-400">
+                        <option value="">Todas las temporadas</option>
+                        <option value="winter" @selected($filters['season'] === 'winter')>❄️ Invierno</option>
+                        <option value="spring" @selected($filters['season'] === 'spring')>🌸 Primavera</option>
+                        <option value="summer" @selected($filters['season'] === 'summer')>☀️ Verano</option>
+                        <option value="fall" @selected($filters['season'] === 'fall')>🍂 Otoño</option>
+                    </select>
+
+                    <select name="order" class="h-11 cursor-pointer rounded-2xl border border-[#273244] bg-[#111827]/80 px-3 text-sm text-slate-200 outline-none focus:border-cyan-400">
+                        <option value="">Orden: por defecto</option>
+                        <option value="score" @selected($filters['order'] === 'score')>Mejor puntuados</option>
+                        <option value="popularity" @selected($filters['order'] === 'popularity')>Más populares</option>
+                        <option value="title" @selected($filters['order'] === 'title')>A → Z</option>
+                        <option value="recent" @selected($filters['order'] === 'recent')>Más recientes</option>
+                    </select>
+
+                    <select name="letter" class="h-11 cursor-pointer rounded-2xl border border-[#273244] bg-[#111827]/80 px-3 text-sm text-slate-200 outline-none focus:border-cyan-400">
+                        <option value="">Todas las letras</option>
+                        @foreach(range('A', 'Z') as $l)
+                            <option value="{{ $l }}" @selected($filters['letter'] === $l)>{{ $l }}</option>
+                        @endforeach
+                    </select>
+
+                    <select name="exclude" class="h-11 cursor-pointer rounded-2xl border border-[#273244] bg-[#111827]/80 px-3 text-sm text-slate-200 outline-none focus:border-cyan-400">
+                        <option value="">Excluir género: ninguno</option>
+                        @foreach(\App\Services\JikanService::GENRES_ES as $es)
+                            <option value="{{ $es }}" @selected($filters['exclude'] === $es)>{{ $es }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            </details>
+
+            {{-- 🧭 Tabs de modo --}}
+            <div class="mt-4 flex flex-wrap gap-2">
+                @foreach(['top' => '⭐ Top', 'popular' => '🔥 Popular', 'airing' => '📺 Emitiéndose', 'upcoming' => '📅 Próximamente'] as $key => $label)
+                    <a href="{{ route('catalog.index', ['mode' => $key]) }}"
+                       class="{{ $filters['mode'] === $key ? 'bg-gradient-to-r from-pink-500 to-violet-500 text-white shadow-lg shadow-pink-500/20' : 'border border-[#273244] text-slate-400 hover:text-white' }} rounded-full px-4 py-2 font-mono text-xs font-bold transition">
+                        {{ $label }}
+                    </a>
+                @endforeach
             </div>
 
             <div class="mt-4 flex items-center gap-3">
@@ -70,61 +124,29 @@
             </div>
         </form>
 
-        {{-- 🌸 TEMPORADA ACTUAL --}}
-        @if(!empty($season))
-            <section>
-                <div class="mb-6 flex items-end justify-between gap-4">
-                    <div>
-                        <div class="mb-2 inline-flex rounded-full border border-pink-400/20 bg-pink-400/10 px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-wider text-pink-300">
-                            🌸 En emisión
-                        </div>
-                        <h2 class="text-lg font-bold text-white">Esta temporada</h2>
-                        <p class="mt-1 text-xs text-slate-500">Los anime que están saliendo ahora mismo</p>
-                    </div>
-                </div>
-                <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-                    @foreach($season as $anime)
-                        <x-anime-card
-                            :mal-id="$anime['mal_id']"
-                            :title="$anime['title'] ?? 'Sin título'"
-                            :image="$anime['images']['jpg']['image_url'] ?? null"
-                            :score="$anime['score'] ?? null"
-                            :type="$anime['type'] ?? null"
-                            :in-list="$myIds->has((int) $anime['mal_id'])"
-                        />
-                    @endforeach
-                </div>
-            </section>
-        @endif
-
         {{-- 🎯 RESULTADOS --}}
         @if(count($animeList) > 0)
             <section>
                 <div class="mb-6 flex items-end justify-between gap-4">
                     <div>
                         <h2 class="text-lg font-bold text-white">
-                            Resultados
+                            {{ ['top' => '⭐ Top histórico', 'popular' => '🔥 Más populares', 'airing' => '📺 Emitiéndose ahora', 'upcoming' => '📅 Próximamente'][$filters['mode']] ?? 'Resultados' }}
                             <span class="ml-2 font-mono text-sm text-slate-500">({{ count($animeList) }}{{ $hasMore ? '+' : '' }})</span>
                         </h2>
                         <p class="mt-1 text-xs text-slate-500">
-                            {{ $filters['q'] ? 'Búsqueda: "' . $filters['q'] . '"' : 'Explora todo el catálogo' }}
+                            @if($filters['q'])
+                                Búsqueda: "{{ $filters['q'] }}"
+                            @elseif($filters['year'])
+                                Mejores de {{ $filters['year'] }}
+                            @else
+                                Explora todo el catálogo
+                            @endif
                         </p>
                     </div>
                 </div>
 
                 <div id="anime-grid" class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-                    @foreach($animeList as $anime)
-                        <div data-mal-id="{{ $anime['mal_id'] }}">
-                            <x-anime-card
-                                :mal-id="$anime['mal_id']"
-                                :title="$anime['title'] ?? 'Sin título'"
-                                :image="$anime['images']['jpg']['image_url'] ?? null"
-                                :score="$anime['score'] ?? null"
-                                :type="$anime['type'] ?? null"
-                                :in-list="$myIds->has((int) $anime['mal_id'])"
-                            />
-                        </div>
-                    @endforeach
+                    @include('catalog._anime_grid', ['animeList' => $animeList])
                 </div>
 
                 <div id="load-sentinel" class="h-10"></div>
