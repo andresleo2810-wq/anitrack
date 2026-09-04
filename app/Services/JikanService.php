@@ -432,4 +432,85 @@ class JikanService
             'type' => self::FORMAT_ES[$m['format'] ?? ''] ?? ($m['format'] ?? 'TV'),
         ])->filter(fn($a) => !empty($a['mal_id']))->values()->all();
     }
+        /** 🎭 Personajes */
+    public function getCharacters(int $malId, int $limit = 12): array
+    {
+        return $this->cached("chars_{$malId}", 24, function () use ($malId, $limit) {
+            $data = $this->jikan("/anime/{$malId}/characters");
+            if (!empty($data)) {
+                return collect($data)->take($limit)->map(fn($c) => [
+                    'name' => $c['character']['name'] ?? '',
+                    'image' => $c['character']['images']['jpg']['image_url'] ?? null,
+                    'role' => $c['role'] ?? '',
+                ])->filter(fn($c) => $c['name'])->values()->all();
+            }
+
+            $q = 'query($idMal:Int){ Media(idMal:$idMal,type:ANIME){ characters(sort:ROLE,perPage:12){ edges{ role node{ name{ full } image{ large } } } } } }';
+            $res = $this->anilist($q, ['idMal' => $malId]);
+            return collect($res['Media']['characters']['edges'] ?? [])->map(fn($e) => [
+                'name' => $e['node']['name']['full'] ?? '',
+                'image' => $e['node']['image']['large'] ?? null,
+                'role' => $e['role'] ?? '',
+            ])->filter(fn($c) => $c['name'])->values()->all();
+        });
+    }
+
+    /** 🔗 Relacionados (precuelas, secuelas, adaptaciones) */
+    public function getRelations(int $malId): array
+    {
+        return $this->cached("rel_{$malId}", 24, function () use ($malId) {
+            $data = $this->jikan("/anime/{$malId}/relations");
+            if (!empty($data)) {
+                $out = [];
+                foreach ($data as $rel) {
+                    foreach ($rel['entry'] ?? [] as $e) {
+                        if (($e['type'] ?? '') === 'anime' && !empty($e['mal_id'])) {
+                            $out[] = [
+                                'relation' => $rel['relation'] ?? '',
+                                'mal_id' => $e['mal_id'],
+                                'title' => $e['name'] ?? '',
+                                'image' => $e['images']['jpg']['image_url'] ?? null,
+                            ];
+                        }
+                    }
+                }
+                return collect($out)->take(8)->values()->all();
+            }
+
+            $q = 'query($idMal:Int){ Media(idMal:$idMal,type:ANIME){ relations{ edges{ relationType node{ idMal title{ romaji } coverImage{ large } } } } } }';
+            $res = $this->anilist($q, ['idMal' => $malId]);
+            return collect($res['Media']['relations']['edges'] ?? [])->map(fn($e) => [
+                'relation' => $e['relationType'] ?? '',
+                'mal_id' => $e['node']['idMal'] ?? null,
+                'title' => $e['node']['title']['romaji'] ?? '',
+                'image' => $e['node']['coverImage']['large'] ?? null,
+            ])->filter(fn($r) => $r['mal_id'])->take(8)->values()->all();
+        });
+    }
+
+    /** 🖼️ Portadas alternativas */
+    public function getPictures(int $malId, int $limit = 8): array
+    {
+        return $this->cached("pics_{$malId}", 24, function () use ($malId, $limit) {
+            $data = $this->jikan("/anime/{$malId}/pictures");
+            if (!empty($data)) {
+                return collect($data)->take($limit)
+                    ->map(fn($p) => $p['jpg']['large_image_url'] ?? $p['jpg']['image_url'] ?? null)
+                    ->filter()->values()->all();
+            }
+            return [];
+        });
+    }
+
+    /** 🎵 Openings y Endings */
+    public function getThemes(int $malId): array
+    {
+        return $this->cached("themes_{$malId}", 24, function () use ($malId) {
+            $data = $this->jikan("/anime/{$malId}/themes");
+            return [
+                'openings' => $data['openings'] ?? [],
+                'endings' => $data['endings'] ?? [],
+            ];
+        });
+    }
 }

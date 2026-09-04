@@ -101,10 +101,14 @@ class CatalogController extends Controller
                 ->where('anime_id', $local->id)->first();
         }
 
-        return view('catalog.show', [
+               return view('catalog.show', [
             'anime' => $anime,
             'userAnime' => $userAnime,
             'similar' => $this->jikan->getRecommendations($malId),
+            'characters' => $this->jikan->getCharacters($malId),
+            'relations' => $this->jikan->getRelations($malId),
+            'pictures' => $this->jikan->getPictures($malId),
+            'themes' => $this->jikan->getThemes($malId),
         ]);
     }
 }

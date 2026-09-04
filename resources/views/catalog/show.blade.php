@@ -68,7 +68,7 @@
         </section>
 
         <div class="grid gap-6 xl:grid-cols-[1fr_400px]">
-            {{-- COLUMNA IZQ: sinopsis + similares --}}
+            {{-- COLUMNA IZQ: sinopsis + personajes + relacionados + OP/ED + portadas + similares --}}
             <div class="flex flex-col gap-6">
                 @if(!empty($anime['synopsis']))
                     <section class="rounded-3xl border border-slate-700/80 bg-slate-900/75 p-6 backdrop-blur-xl">
@@ -79,6 +79,71 @@
                                     class="mt-3 hidden rounded-full border border-pink-400/30 bg-pink-500/10 px-4 py-1.5 text-xs font-semibold text-pink-300 transition hover:bg-pink-500/20">
                                 👁️ Revelar sinopsis
                             </button>
+                        </div>
+                    </section>
+                @endif
+
+                {{-- 🎭 Personajes --}}
+                @if(!empty($characters))
+                    <section class="rounded-3xl border border-slate-700/80 bg-slate-900/75 p-6 backdrop-blur-xl">
+                        <h2 class="mb-4 text-lg font-bold text-white">🎭 Personajes</h2>
+                        <div class="flex gap-3 overflow-x-auto pb-2">
+                            @foreach($characters as $c)
+                                <div class="w-28 shrink-0">
+                                    <img src="{{ $c['image'] }}" alt="{{ $c['name'] }}" class="h-36 w-28 rounded-xl object-cover">
+                                    <p class="mt-2 truncate text-xs font-semibold text-slate-200">{{ $c['name'] }}</p>
+                                    <p class="font-mono text-[10px] text-slate-500">{{ $c['role'] === 'Main' ? 'Principal' : 'Secundario' }}</p>
+                                </div>
+                            @endforeach
+                        </div>
+                    </section>
+                @endif
+
+                {{-- 🔗 Relacionados --}}
+                @if(!empty($relations))
+                    <section>
+                        <h2 class="mb-4 text-lg font-bold text-white">🔗 Relacionados</h2>
+                        <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                            @foreach($relations as $r)
+                                <a href="{{ route('catalog.show', $r['mal_id']) }}" class="flex items-center gap-3 rounded-2xl bg-slate-950/60 p-2 transition hover:ring-1 hover:ring-pink-400/30">
+                                    <img src="{{ $r['image'] }}" alt="{{ $r['title'] }}" class="h-16 w-11 rounded-lg object-cover">
+                                    <div class="min-w-0">
+                                        <p class="font-mono text-[10px] uppercase tracking-wider text-cyan-400">{{ $r['relation'] }}</p>
+                                        <p class="truncate text-xs font-semibold text-slate-200">{{ $r['title'] }}</p>
+                                    </div>
+                                </a>
+                            @endforeach
+                        </div>
+                    </section>
+                @endif
+
+                {{-- 🎵 OP/ED --}}
+                @if(!empty($themes['openings']) || !empty($themes['endings']))
+                    <section class="rounded-3xl border border-slate-700/80 bg-slate-900/75 p-6 backdrop-blur-xl">
+                        <h2 class="mb-4 text-lg font-bold text-white">🎵 Openings & Endings</h2>
+                        @if(!empty($themes['openings']))
+                            <p class="font-mono text-[10px] font-bold uppercase tracking-wider text-cyan-400">Openings</p>
+                            <ul class="mt-2 space-y-1 font-mono text-xs text-slate-400">
+                                @foreach($themes['openings'] as $op)<li>▶ {{ $op }}</li>@endforeach
+                            </ul>
+                        @endif
+                        @if(!empty($themes['endings']))
+                            <p class="mt-4 font-mono text-[10px] font-bold uppercase tracking-wider text-pink-400">Endings</p>
+                            <ul class="mt-2 space-y-1 font-mono text-xs text-slate-400">
+                                @foreach($themes['endings'] as $ed)<li>◼ {{ $ed }}</li>@endforeach
+                            </ul>
+                        @endif
+                    </section>
+                @endif
+
+                {{-- 🖼️ Portadas --}}
+                @if(!empty($pictures))
+                    <section>
+                        <h2 class="mb-4 text-lg font-bold text-white">🖼️ Portadas</h2>
+                        <div class="flex gap-3 overflow-x-auto pb-2">
+                            @foreach($pictures as $pic)
+                                <img src="{{ $pic }}" alt="Portada" class="h-40 w-28 shrink-0 rounded-xl object-cover">
+                            @endforeach
                         </div>
                     </section>
                 @endif
@@ -95,8 +160,36 @@
                 @endif
             </div>
 
-            {{-- COLUMNA DER: score vs comunidad + formulario --}}
+            {{-- COLUMNA DER: datos + score vs comunidad + formulario --}}
             <div class="flex flex-col gap-6">
+                {{-- 📋 Datos técnicos --}}
+                <section class="rounded-3xl border border-slate-700/80 bg-slate-900/75 p-6 backdrop-blur-xl">
+                    <h2 class="text-sm font-bold text-white">📋 Datos</h2>
+                    <dl class="mt-4 grid grid-cols-2 gap-4 text-xs">
+                        @if(!empty($anime['studios']))
+                            <div><dt class="text-slate-500">Estudio</dt><dd class="mt-1 font-semibold text-slate-200">{{ collect($anime['studios'])->pluck('name')->implode(', ') }}</dd></div>
+                        @endif
+                        @if(!empty($anime['title_japanese']))
+                            <div><dt class="text-slate-500">Título japonés</dt><dd class="mt-1 text-slate-200">{{ $anime['title_japanese'] }}</dd></div>
+                        @endif
+                        @if(!empty($anime['duration']))
+                            <div><dt class="text-slate-500">Duración</dt><dd class="mt-1 text-slate-200">{{ $anime['duration'] }}</dd></div>
+                        @endif
+                        @if(!empty($anime['aired']['from']))
+                            <div><dt class="text-slate-500">Emitido</dt><dd class="mt-1 text-slate-200">{{ \Carbon\Carbon::parse($anime['aired']['from'])->format('d-m-Y') }}</dd></div>
+                        @endif
+                        @if(!empty($anime['aired']['to']))
+                            <div><dt class="text-slate-500">Finalizado</dt><dd class="mt-1 text-slate-200">{{ \Carbon\Carbon::parse($anime['aired']['to'])->format('d-m-Y') }}</dd></div>
+                        @endif
+                        @if(!empty($anime['season']))
+                            <div><dt class="text-slate-500">Temporada</dt><dd class="mt-1 text-slate-200">{{ ucfirst($anime['season']) }} {{ $anime['year'] ?? '' }}</dd></div>
+                        @endif
+                        @if(!empty($anime['members']))
+                            <div><dt class="text-slate-500">Visitas</dt><dd class="mt-1 font-mono text-cyan-400">{{ number_format($anime['members'] / 1000000, 1) }}M</dd></div>
+                        @endif
+                    </dl>
+                </section>
+
                 @if($userAnime && $userAnime->score && !empty($anime['score']))
                     <section class="rounded-3xl border border-slate-700/80 bg-slate-900/75 p-6 backdrop-blur-xl">
                         <h2 class="text-sm font-bold text-white">⚖️ Tu opinión vs la comunidad</h2>
