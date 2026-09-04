@@ -90,6 +90,7 @@
                             :image="$anime['images']['jpg']['image_url'] ?? null"
                             :score="$anime['score'] ?? null"
                             :type="$anime['type'] ?? null"
+                            :in-list="$myIds->has((int) $anime['mal_id'])"
                         />
                     @endforeach
                 </div>
@@ -120,6 +121,7 @@
                                 :image="$anime['images']['jpg']['image_url'] ?? null"
                                 :score="$anime['score'] ?? null"
                                 :type="$anime['type'] ?? null"
+                                :in-list="$myIds->has((int) $anime['mal_id'])"
                             />
                         </div>
                     @endforeach
