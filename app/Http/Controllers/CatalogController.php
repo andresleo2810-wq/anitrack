@@ -11,13 +11,13 @@ class CatalogController extends Controller
 {
     public function __construct(protected JikanService $jikan) {}
 
-    /** Catálogo con filtros + tabs de modo + año */
+    /** Catálogo con filtros + tabs de modo + año + modo offline */
     public function index(Request $request)
     {
         $page = max(1, (int) $request->input('page', 1));
         $perPage = 24;
 
-                $filters = [
+        $filters = [
             'q' => $request->input('q', ''),
             'genre' => $request->input('genre', ''),
             'type' => $request->input('type', ''),
@@ -64,9 +64,18 @@ class CatalogController extends Controller
                 'popular' => $this->jikan->getPopular($perPage),
                 'airing' => $this->jikan->getSeasonNow($perPage),
                 'upcoming' => $this->jikan->getSeasonUpcoming($perPage),
+                'mycollection' => $this->localCollection(),
                 default => $this->jikan->getTopAnime($page, $perPage),
             };
             $hasMore = $filters['mode'] === 'top' ? $this->jikan->lastHasMore : false;
+        }
+
+        // 📴 Modo offline: si ambas APIs fallaron y no hay filtros, muestra la colección local
+        $offline = false;
+        if (empty($animeList) && !$hasFilters && $filters['year'] === 0) {
+            $animeList = $this->localCollection();
+            $offline = !empty($animeList);
+            $hasMore = false;
         }
 
         if ($request->ajax()) {
@@ -82,7 +91,22 @@ class CatalogController extends Controller
             'filters' => $filters,
             'hasMore' => $hasMore,
             'page' => $page,
+            'offline' => $offline,
         ]);
+    }
+
+    /** Colección local del usuario (formato compatible con las vistas) */
+    protected function localCollection(): array
+    {
+        return Anime::whereIn('id', UserAnime::where('user_id', auth()->id())->pluck('anime_id'))
+            ->get()
+            ->map(fn($a) => [
+                'mal_id' => (int) $a->mal_id,
+                'title' => $a->title,
+                'images' => ['jpg' => ['image_url' => $a->image_url]],
+                'score' => $a->score_api !== null ? (float) $a->score_api : null,
+                'type' => $a->type ?? 'TV',
+            ])->values()->all();
     }
 
     /** Ficha de detalle */
@@ -101,7 +125,7 @@ class CatalogController extends Controller
                 ->where('anime_id', $local->id)->first();
         }
 
-               return view('catalog.show', [
+        return view('catalog.show', [
             'anime' => $anime,
             'userAnime' => $userAnime,
             'similar' => $this->jikan->getRecommendations($malId),

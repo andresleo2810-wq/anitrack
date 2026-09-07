@@ -124,6 +124,17 @@
             </div>
         </form>
 
+        {{-- 📴 Aviso modo offline --}}
+        @if(!empty($offline))
+            <div class="flex items-start gap-3 rounded-2xl border border-amber-400/20 bg-amber-500/10 p-4 text-sm text-amber-300 backdrop-blur">
+                <span class="text-lg">📴</span>
+                <div>
+                    <p class="font-bold">Modo offline activado</p>
+                    <p class="mt-1 text-xs text-amber-200/70">MyAnimeList y AniList están caídos ahora mismo. Mostrando tu colección local — la app se reconectará sola cuando los servicios revivan.</p>
+                </div>
+            </div>
+        @endif
+
         {{-- 🎯 RESULTADOS --}}
         @if(count($animeList) > 0)
             <section>

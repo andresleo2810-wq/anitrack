@@ -103,7 +103,7 @@ class JikanService
 
     protected const FIELDS = '
         idMal id
-        title { romaji english }
+        title { romaji english native }
         coverImage { large }
         description
         episodes
@@ -113,6 +113,12 @@ class JikanService
         popularity
         genres
         trailer { id site }
+        studios { nodes { name } }
+        duration
+        season
+        seasonYear
+        startDate { year month day }
+        endDate { year month day }
     ';
 
     protected function normalize(array $m, bool $withSpanish = false): array
@@ -125,6 +131,7 @@ class JikanService
             'title' => $romaji,
             'title_spanish' => $es['title'] ?? null,
             'title_english' => $m['title']['english'] ?? null,
+            'title_japanese' => $m['title']['native'] ?? null,
             'synopsis' => $es['synopsis']
                 ?? $this->translator->translate(isset($m['description']) ? trim(strip_tags($m['description'])) : null),
             'type' => self::FORMAT_ES[$m['format'] ?? ''] ?? $m['format'],
@@ -138,7 +145,22 @@ class JikanService
                 ? 'https://www.youtube.com/watch?v=' . $m['trailer']['id']
                 : null,
             'images' => ['jpg' => ['image_url' => $m['coverImage']['large'] ?? null]],
+            'studios' => collect($m['studios']['nodes'] ?? [])
+                ->map(fn($s) => ['name' => $s['name'] ?? ''])->filter(fn($s) => $s['name'])->all(),
+            'duration' => !empty($m['duration']) ? $m['duration'] . ' min por ep' : null,
+            'season' => !empty($m['season']) ? strtolower($m['season']) : null,
+            'year' => $m['seasonYear'] ?? null,
+            'aired' => [
+                'from' => self::aniDate($m['startDate'] ?? null),
+                'to' => self::aniDate($m['endDate'] ?? null),
+            ],
         ];
+    }
+
+    protected static function aniDate(?array $d): ?string
+    {
+        if (!$d || empty($d['year'])) return null;
+        return sprintf('%04d-%02d-%02d', $d['year'], $d['month'] ?? 1, $d['day'] ?? 1);
     }
 
     // ============ LISTAS ANILIST CON PAGINACIÓN ============
@@ -152,7 +174,9 @@ class JikanService
         return $this->mapAnilist($media);
     }
 
-       public function searchAnime(array $f, int $limit = 24, int $page = 1): array
+    // ============ BÚSQUEDA Y TOP ============
+
+    public function searchAnime(array $f, int $limit = 24, int $page = 1): array
     {
         $hasExclude = !empty($f['exclude_en']);
 
@@ -222,7 +246,6 @@ class JikanService
             return $this->anilistList(', sort: SCORE_DESC', [], $limit, $page);
         });
 
-        // ✅ Siempre se calcula, venga de caché o de la API
         $this->lastHasMore = count($data) >= $limit;
 
         return $data;
@@ -319,7 +342,6 @@ class JikanService
                 'score' => $a['score'] ?? null,
             ])->take(12)->values()->all();
 
-        // 1 sola prueba con Jikan (lunes). Si responde, consulta el resto.
         $probe = $this->jikan('/schedules', ['filter' => 'monday', 'limit' => 20]);
 
         if (!empty($probe)) {
@@ -329,7 +351,6 @@ class JikanService
                 $resultado[$nombres[$i]] = $map($this->jikan('/schedules', ['filter' => $dia, 'limit' => 20]));
             }
         } else {
-            // AniList: toda la semana en 1 sola consulta
             $q = 'query($ini:Int,$fin:Int){ Page(perPage:50){ airingSchedules(airingAt_greater:$ini, airingAt_lesser:$fin, sort:TIME){ airingAt media{ idMal title{ romaji } coverImage{ large } averageScore } } } }';
             $res = $this->anilist($q, [
                 'ini' => now()->startOfWeek()->timestamp,
@@ -432,7 +453,8 @@ class JikanService
             'type' => self::FORMAT_ES[$m['format'] ?? ''] ?? ($m['format'] ?? 'TV'),
         ])->filter(fn($a) => !empty($a['mal_id']))->values()->all();
     }
-        /** 🎭 Personajes */
+
+    /** 🎭 Personajes */
     public function getCharacters(int $malId, int $limit = 12): array
     {
         return $this->cached("chars_{$malId}", 24, function () use ($malId, $limit) {
