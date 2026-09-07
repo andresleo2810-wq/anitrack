@@ -4,6 +4,7 @@ use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\CatalogController;
 use App\Http\Controllers\AnimeListController;
+use App\Http\Controllers\AchievementController;
 
 Route::middleware(['auth'])->group(function () {
     Route::get('/catalog', [CatalogController::class, 'index'])->name('catalog.index');
@@ -23,6 +24,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/mylist-export', [AnimeListController::class, 'export'])->name('mylist.export');
     Route::post('/mylist-import-json', [AnimeListController::class, 'importJson'])->name('mylist.importJson');
     Route::get('/recap', [App\Http\Controllers\DashboardController::class, 'recap'])->name('recap');
+        Route::get('/achievements', [AchievementController::class, 'index'])->name('achievements.index');
     });
 
 Route::get('/', function () {

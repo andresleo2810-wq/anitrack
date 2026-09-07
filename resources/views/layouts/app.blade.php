@@ -57,6 +57,10 @@
                             <span class="flex items-center gap-3"><i data-lucide="list-video" class="size-4"></i> Mi lista</span>
                             <span class="rounded-full bg-slate-800 px-2 py-0.5 font-mono text-[10px] text-slate-400">{{ $totalLista }}</span>
                         </a>
+                        <a href="{{ route('achievements.index') }}" class="{{ request()->routeIs('achievements.*') ? 'bg-amber-500/15 text-amber-300' : 'text-slate-400 hover:bg-slate-800/60 hover:text-white' }} flex items-center justify-between rounded-2xl px-3 py-3 text-sm font-medium transition focus-visible:ring-2 focus-visible:ring-cyan-400">
+                            <span class="flex items-center gap-3"><i data-lucide="trophy" class="size-4"></i> Logros</span>
+                            <span class="rounded-full bg-amber-400/10 px-2 py-0.5 font-mono text-[10px] text-amber-400">🏆</span>
+                        </a>
                         <a href="{{ route('profile.edit') }}" class="{{ request()->routeIs('profile.*') ? 'bg-pink-500/15 text-pink-300' : 'text-slate-400 hover:bg-slate-800/60 hover:text-white' }} flex items-center gap-3 rounded-2xl px-3 py-3 text-sm font-medium transition focus-visible:ring-2 focus-visible:ring-cyan-400">
                             <i data-lucide="user" class="size-4"></i> Perfil
                         </a>
@@ -67,7 +71,7 @@
                     <p class="mb-4 px-3 font-mono text-[10px] font-bold uppercase tracking-[0.25em] text-slate-500">Tu espacio</p>
                     <div class="flex flex-col gap-2">
                         <a href="{{ route('recap') }}" class="{{ request()->routeIs('recap') ? 'bg-violet-500/15 text-violet-300' : 'text-slate-400 hover:bg-slate-800/60 hover:text-white' }} flex items-center justify-between rounded-2xl px-3 py-3 text-sm font-medium transition focus-visible:ring-2 focus-visible:ring-cyan-400">
-                            <span class="flex items-center gap-3"><i data-lucide="trophy" class="size-4"></i> Recap {{ now()->year }}</span>
+                            <span class="flex items-center gap-3"><i data-lucide="sparkles" class="size-4"></i> Recap {{ now()->year }}</span>
                             <i data-lucide="arrow-right" class="size-4"></i>
                         </a>
                     </div>
@@ -132,6 +136,34 @@
         </button>
     </div>
     <div id="voice-toast" class="fixed bottom-24 left-1/2 z-50 hidden -translate-x-1/2 rounded-xl px-4 py-3 text-sm text-white" style="background: #111827; border: 1px solid #22c55e"></div>
+
+    {{-- 🏆 POPUP DE LOGROS RECIÉN DESBLOQUEADOS --}}
+    @if(session('new_achievements'))
+        <div id="achievement-popup" class="fixed bottom-6 right-6 z-[60] flex w-80 flex-col gap-3">
+            @foreach(session('new_achievements') as $a)
+                <div class="achievement-toast flex items-center gap-4 rounded-2xl border border-amber-400/40 bg-slate-900/95 p-4 shadow-2xl shadow-amber-500/30 backdrop-blur-xl">
+                    <div class="flex size-12 shrink-0 items-center justify-center rounded-xl text-2xl {{ $a->tierColor() }}">
+                        {{ $a->icon }}
+                    </div>
+                    <div class="min-w-0">
+                        <p class="font-mono text-[10px] font-bold uppercase tracking-wider text-amber-400">🏆 Logro desbloqueado</p>
+                        <p class="truncate text-sm font-bold text-white">{{ $a->name }}</p>
+                        <p class="truncate text-xs text-slate-400">+{{ $a->points }} pts · {{ $a->description }}</p>
+                    </div>
+                </div>
+            @endforeach
+        </div>
+        <style>
+            .achievement-toast { animation: toast-in .6s cubic-bezier(.21,1.02,.73,1) forwards; }
+            @keyframes toast-in {
+                from { transform: translateX(120%) scale(.8); opacity: 0; }
+                to { transform: translateX(0) scale(1); opacity: 1; }
+            }
+        </style>
+        <script>
+            setTimeout(() => document.getElementById('achievement-popup')?.remove(), 8000);
+        </script>
+    @endif
 
     <script>
         lucide.createIcons();

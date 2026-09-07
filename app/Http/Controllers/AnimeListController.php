@@ -5,13 +5,17 @@ namespace App\Http\Controllers;
 use App\Models\Anime;
 use App\Models\Genre;
 use App\Models\UserAnime;
+use App\Services\AchievementService; // 🏆 LOGROS
 use App\Services\JikanService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 
 class AnimeListController extends Controller
 {
-    public function __construct(protected JikanService $jikan) {}
+    public function __construct(
+        protected JikanService $jikan,
+        protected AchievementService $achievements, // 🏆 LOGROS
+    ) {}
 
     /** Mi Lista agrupada + sugerencia aleatoria */
     public function index()
@@ -92,6 +96,8 @@ class AnimeListController extends Controller
 
         $this->applySmartDates($entry);
 
+        $this->evaluateAndFlashAchievements(); // 🏆 LOGROS
+
         return redirect()->back()->with('success', '✅ Anime guardado en tu lista');
     }
 
@@ -112,6 +118,8 @@ class AnimeListController extends Controller
         $userAnime->update($validated);
         $this->applySmartDates($userAnime);
 
+        $this->evaluateAndFlashAchievements(); // 🏆 LOGROS
+
         return redirect()->back()->with('success', '✅ Lista actualizada');
     }
 
@@ -126,9 +134,11 @@ class AnimeListController extends Controller
 
         if ($total && $userAnime->fresh()->episodes_watched >= $total && $userAnime->status !== 'completed') {
             $userAnime->update(['status' => 'completed', 'finished_at' => now()]);
+            $this->evaluateAndFlashAchievements(); // 🏆 LOGROS
             return redirect()->back()->with('success', "🎉 ¡{$userAnime->anime->title} completado automáticamente!");
         }
 
+        $this->evaluateAndFlashAchievements(); // 🏆 LOGROS
         return redirect()->back()->with('success', '📺 Episodio registrado');
     }
 
@@ -171,6 +181,8 @@ class AnimeListController extends Controller
             ]
         );
 
+        $this->evaluateAndFlashAchievements(); // 🏆 LOGROS
+
         return response()->json(['ok' => true, 'message' => '✅ "' . $local->title . '" agregado a Completados']);
     }
 
@@ -184,9 +196,13 @@ class AnimeListController extends Controller
 
         $username = trim($request->mal_username);
 
-        return $request->source === 'mal'
+        $result = $request->source === 'mal'
             ? $this->importFromMal($username)
             : $this->importFromAniList($username);
+
+        $this->evaluateAndFlashAchievements(); // 🏆 LOGROS
+
+        return $result;
     }
 
     /** Vía MyAnimeList (Jikan) - con reintentos */
@@ -445,7 +461,31 @@ class AnimeListController extends Controller
             $imported++;
         }
 
+        $this->evaluateAndFlashAchievements(); // 🏆 LOGROS
+
         return redirect()->route('mylist.index')
             ->with('success', "💾 Backup restaurado: {$imported} anime · {$skipped} ya estaban");
+    }
+
+    // ============================================
+    // 🏆 SISTEMA DE LOGROS
+    // ============================================
+
+    /**
+     * Evalúa todos los logros del usuario y guarda los recién desbloqueados en sesión.
+     * El layout los mostrará como popup neon en la siguiente carga.
+     */
+    protected function evaluateAndFlashAchievements(): void
+    {
+        try {
+            $newlyUnlocked = $this->achievements->evaluate(auth()->user());
+
+            if (!empty($newlyUnlocked)) {
+                session()->flash('new_achievements', $newlyUnlocked);
+            }
+        } catch (\Exception $e) {
+            // Silencioso: los logros nunca deben romper el flujo principal
+            \Log::warning('Error evaluando logros: ' . $e->getMessage());
+        }
     }
 }
