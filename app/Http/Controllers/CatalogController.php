@@ -11,11 +11,16 @@ class CatalogController extends Controller
 {
     public function __construct(protected JikanService $jikan) {}
 
-    /** Catálogo con filtros + tabs de modo + año + modo offline */
     public function index(Request $request)
     {
         $page = max(1, (int) $request->input('page', 1));
         $perPage = 24;
+
+        // 🔄 Reintento manual: limpia breakers
+        if ($request->boolean('retry')) {
+            \Illuminate\Support\Facades\Cache::forget('jikan_down');
+            \Illuminate\Support\Facades\Cache::forget('anilist_down');
+        }
 
         $filters = [
             'q' => $request->input('q', ''),
@@ -36,6 +41,9 @@ class CatalogController extends Controller
             || $filters['status'] !== '' || $filters['season'] !== ''
             || $filters['letter'] !== '' || $filters['order'] !== ''
             || $filters['exclude'] !== '';
+
+        $animeList = [];
+        $hasMore = false;
 
         if ($hasFilters) {
             $genreEn = $filters['genre'] !== ''
@@ -64,18 +72,17 @@ class CatalogController extends Controller
                 'popular' => $this->jikan->getPopular($perPage),
                 'airing' => $this->jikan->getSeasonNow($perPage),
                 'upcoming' => $this->jikan->getSeasonUpcoming($perPage),
-                'mycollection' => $this->localCollection(),
                 default => $this->jikan->getTopAnime($page, $perPage),
             };
             $hasMore = $filters['mode'] === 'top' ? $this->jikan->lastHasMore : false;
         }
 
-        // 📴 Modo offline: si ambas APIs fallaron y no hay filtros, muestra la colección local
+        // 📴 Modo offline: si las APIs fallaron, busca en la BD local
         $offline = false;
-        if (empty($animeList) && !$hasFilters && $filters['year'] === 0) {
-            $animeList = $this->localCollection();
+        if (empty($animeList)) {
+            $animeList = $this->localSearch($filters, $perPage, $page);
             $offline = !empty($animeList);
-            $hasMore = false;
+            $hasMore = count($animeList) >= $perPage;
         }
 
         if ($request->ajax()) {
@@ -95,24 +102,116 @@ class CatalogController extends Controller
         ]);
     }
 
-    /** Colección local del usuario (formato compatible con las vistas) */
-    protected function localCollection(): array
+    /**
+     * 📴 Búsqueda en la BD local con filtros reales
+     * Funciona con cualquier cantidad de anime sincronizado
+     */
+    protected function localSearch(array $filters, int $perPage, int $page): array
     {
-        return Anime::whereIn('id', UserAnime::where('user_id', auth()->id())->pluck('anime_id'))
-            ->get()
-            ->map(fn($a) => [
-                'mal_id' => (int) $a->mal_id,
-                'title' => $a->title,
-                'images' => ['jpg' => ['image_url' => $a->image_url]],
-                'score' => $a->score_api !== null ? (float) $a->score_api : null,
-                'type' => $a->type ?? 'TV',
-            ])->values()->all();
+        $query = Anime::query();
+
+        // Búsqueda por texto
+        if (!empty($filters['q'])) {
+            $query->where('title', 'like', '%' . $filters['q'] . '%');
+        }
+
+        // Filtro por género
+        if (!empty($filters['genre'])) {
+            $query->whereHas('genres', function ($q) use ($filters) {
+                $q->where('name', $filters['genre']);
+            });
+        }
+
+        // Filtro por tipo
+        if (!empty($filters['type'])) {
+            $typeMap = ['TV' => 'TV', 'MOVIE' => 'Película', 'OVA' => 'OVA', 'ONA' => 'ONA'];
+            $query->where('type', $typeMap[$filters['type']] ?? $filters['type']);
+        }
+
+        // Filtro por puntuación mínima
+        if ($filters['min_score'] > 0) {
+            $query->where('score', '>=', $filters['min_score']);
+        }
+
+        // Filtro por año
+        if (!empty($filters['year']) && $filters['year'] > 0) {
+            $query->where('year', $filters['year']);
+        }
+
+        // Filtro por estado
+        if (!empty($filters['status'])) {
+            $statusMap = ['airing' => 'En emisión', 'complete' => 'Finalizado', 'upcoming' => 'Próximamente'];
+            $query->where('status', $statusMap[$filters['status']] ?? $filters['status']);
+        }
+
+        // Filtro por temporada
+        if (!empty($filters['season'])) {
+            $query->where('season', $filters['season']);
+        }
+
+        // Filtro por letra
+        if (!empty($filters['letter'])) {
+            $query->where('title', 'like', $filters['letter'] . '%');
+        }
+
+        // Orden
+        $query->orderByDesc(match ($filters['order'] ?? '') {
+            'score' => 'score',
+            'popularity' => 'popularity',
+            'title' => \Illuminate\Support\Facades\DB::raw('0'), // no desc para title
+            'recent' => 'year',
+            default => 'score',
+        });
+
+        if (($filters['order'] ?? '') === 'title') {
+            $query->reorder('title', 'asc');
+        }
+
+        // Paginación
+        $results = $query->skip(($page - 1) * $perPage)->take($perPage)->get();
+
+        return $results->map(fn($a) => [
+            'mal_id' => (int) $a->mal_id,
+            'title' => $a->title,
+            'images' => ['jpg' => ['image_url' => $a->image_url]],
+            'score' => $a->score !== null ? (float) $a->score : null,
+            'type' => $a->type ?? 'TV',
+        ])->values()->all();
     }
 
     /** Ficha de detalle */
     public function show(int $malId)
     {
         $anime = $this->jikan->getAnimeById($malId);
+
+        // 📴 Fallback: si la API no responde, busca en BD local
+        if (!$anime) {
+            $local = Anime::where('mal_id', $malId)->first();
+            if ($local) {
+                $anime = [
+                    'mal_id' => (int) $local->mal_id,
+                    'title' => $local->title,
+                    'title_spanish' => null,
+                    'title_english' => null,
+                    'title_japanese' => null,
+                    'synopsis' => $local->synopsis ?? 'Sinopsis no disponible en modo offline.',
+                    'type' => $local->type ?? 'TV',
+                    'episodes' => $local->episodes_total,
+                    'status' => $local->status ?? 'Desconocido',
+                    'score' => $local->score,
+                    'popularity' => $local->popularity,
+                    'genres' => $local->genres->map(fn($g) => ['name' => $g->name])->all(),
+                    'images' => ['jpg' => ['image_url' => $local->image_url, 'large_image_url' => $local->image_url]],
+                    'studios' => $local->studios ? collect(explode(', ', $local->studios))->map(fn($s) => ['name' => $s])->all() : [],
+                    'season' => $local->season,
+                    'year' => $local->year,
+                    'aired' => ['from' => null, 'to' => null],
+                    'trailer_url' => null,
+                    'duration' => null,
+                    'offline' => true,
+                ];
+            }
+        }
 
         if (!$anime) {
             abort(404, 'Anime no encontrado');
@@ -128,11 +227,11 @@ class CatalogController extends Controller
         return view('catalog.show', [
             'anime' => $anime,
             'userAnime' => $userAnime,
-            'similar' => $this->jikan->getRecommendations($malId),
-            'characters' => $this->jikan->getCharacters($malId),
-            'relations' => $this->jikan->getRelations($malId),
-            'pictures' => $this->jikan->getPictures($malId),
-            'themes' => $this->jikan->getThemes($malId),
+            'similar' => ($anime['offline'] ?? false) ? [] : $this->jikan->getRecommendations($malId),
+            'characters' => ($anime['offline'] ?? false) ? [] : $this->jikan->getCharacters($malId),
+            'relations' => ($anime['offline'] ?? false) ? [] : $this->jikan->getRelations($malId),
+            'pictures' => ($anime['offline'] ?? false) ? [] : $this->jikan->getPictures($malId),
+            'themes' => ($anime['offline'] ?? false) ? ['openings' => [], 'endings' => []] : $this->jikan->getThemes($malId),
         ]);
     }
 }

@@ -250,6 +250,11 @@ class JikanService
 
         return $data;
     }
+        /** Página cruda del catálogo completo (para sync masivo) */
+    public function rawAnimePage(int $page, int $limit = 25): array
+    {
+        return $this->jikan('/anime', ['page' => $page, 'limit' => $limit, 'sfw' => 'true']);
+    }
 
     public function getAnimeById(int $malId): ?array
     {
