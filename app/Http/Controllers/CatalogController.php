@@ -9,7 +9,10 @@ use Illuminate\Http\Request;
 
 class CatalogController extends Controller
 {
-    public function __construct(protected JikanService $jikan) {}
+        public function __construct(
+        protected JikanService $jikan,
+        protected \App\Services\LocalRecommendationService $recs,
+    ) {}
 
     public function index(Request $request)
     {
@@ -224,14 +227,43 @@ class CatalogController extends Controller
                 ->where('anime_id', $local->id)->first();
         }
 
+               // 🔗 Similares: intenta API, siempre completa con BD local
+        $similar = [];
+        if (!($anime['offline'] ?? false)) {
+            $similar = $this->jikan->getRecommendations($malId);
+        }
+        if (count($similar) < 3 && $local) {
+            $similar = $this->recs->similarTo($local);
+        }
+
         return view('catalog.show', [
             'anime' => $anime,
             'userAnime' => $userAnime,
-            'similar' => ($anime['offline'] ?? false) ? [] : $this->jikan->getRecommendations($malId),
+            'similar' => $similar,
             'characters' => ($anime['offline'] ?? false) ? [] : $this->jikan->getCharacters($malId),
             'relations' => ($anime['offline'] ?? false) ? [] : $this->jikan->getRelations($malId),
             'pictures' => ($anime['offline'] ?? false) ? [] : $this->jikan->getPictures($malId),
             'themes' => ($anime['offline'] ?? false) ? ['openings' => [], 'endings' => []] : $this->jikan->getThemes($malId),
         ]);
+    }
+        /** ⚡ Sugerencias instantáneas del buscador (BD local, 0 APIs) */
+    public function suggest(Request $request)
+    {
+        $q = trim((string) $request->query('q', ''));
+        if (mb_strlen($q) < 2) return response()->json([]);
+
+        $results = Anime::where('title', 'like', $q . '%')
+            ->orWhere('title', 'like', '% ' . $q . '%')
+            ->orderByDesc('score')
+            ->limit(8)
+            ->get(['mal_id', 'title', 'image_url', 'score', 'year']);
+
+        return response()->json($results->map(fn($a) => [
+            'mal_id' => (int) $a->mal_id,
+            'title' => $a->title,
+            'image' => $a->image_url,
+            'score' => $a->score !== null ? (float) $a->score : null,
+            'year' => $a->year,
+        ]));
     }
 }

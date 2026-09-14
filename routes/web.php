@@ -9,7 +9,7 @@ use App\Http\Controllers\AchievementController;
 Route::middleware(['auth'])->group(function () {
     Route::get('/catalog', [CatalogController::class, 'index'])->name('catalog.index');
     Route::get('/anime/{malId}', [CatalogController::class, 'show'])->name('catalog.show');
-
+    Route::get('/catalog/suggest', [CatalogController::class, 'suggest'])->name('catalog.suggest');
     Route::get('/mylist', [AnimeListController::class, 'index'])->name('mylist.index');
     Route::post('/mylist', [AnimeListController::class, 'store'])->name('mylist.store');
     Route::put('/mylist/{userAnime}', [AnimeListController::class, 'update'])->name('mylist.update');

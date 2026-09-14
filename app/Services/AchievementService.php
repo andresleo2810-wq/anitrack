@@ -59,13 +59,13 @@ class AchievementService
         $items = UserAnime::where('user_id', $user->id)->get();
         $animes = Anime::whereIn('id', $items->pluck('anime_id'))->get()->keyBy('id');
 
-        // Géneros
+               // Géneros
         $genreCount = [];
         foreach ($items as $i) {
-            $genres = $animes->get($i->anime_id)?->genres ?? [];
-            if (is_string($genres)) $genres = json_decode($genres, true) ?? [];
-            foreach ($genres as $g) {
-                $genreCount[$g] = ($genreCount[$g] ?? 0) + 1;
+            $genreNames = $animes->get($i->anime_id)?->genres?->pluck('name') ?? collect();
+            foreach ($genreNames as $name) {
+                if (!$name) continue;
+                $genreCount[$name] = ($genreCount[$name] ?? 0) + 1;
             }
         }
 

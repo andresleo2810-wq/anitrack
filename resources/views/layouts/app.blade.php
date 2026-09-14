@@ -95,12 +95,13 @@
                     <button type="button" id="btn-menu" class="rounded-xl p-2 text-slate-400 transition hover:bg-slate-800 hover:text-white lg:hidden" aria-label="Abrir menú">
                         <i data-lucide="menu" class="size-5"></i>
                     </button>
-                    <form action="{{ route('catalog.index') }}" method="GET" class="hidden sm:block">
+                                        <form action="{{ route('catalog.index') }}" method="GET" class="hidden sm:block">
                         <label class="relative block">
                             <span class="sr-only">Buscar anime</span>
                             <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-500"><i data-lucide="search" class="size-4"></i></span>
-                            <input type="search" name="q" value="{{ request('q') }}" placeholder="Buscar anime..."
+                            <input type="search" name="q" id="global-search" value="{{ request('q') }}" placeholder="Buscar anime..." autocomplete="off"
                                    class="h-10 w-64 rounded-full border border-[#273244] bg-[#111827]/80 pl-10 pr-4 text-sm text-slate-200 outline-none transition placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20">
+                            <div id="suggest-box" class="absolute left-0 top-12 z-50 hidden w-72 overflow-hidden rounded-2xl border border-[#273244] bg-[#0b1120]/95 shadow-2xl shadow-cyan-500/10 backdrop-blur-xl"></div>
                         </label>
                     </form>
                 </div>
@@ -216,6 +217,51 @@
                 } catch (err) { showToast('Error de conexión', false); }
             };
             btn.onclick = () => rec.start();
+        })();
+                // ⚡ Autocompletado del buscador global (BD local, instantáneo)
+        (function () {
+            const input = document.getElementById('global-search');
+            const box = document.getElementById('suggest-box');
+            if (!input || !box) return;
+
+            let timer = null;
+
+            input.addEventListener('input', () => {
+                clearTimeout(timer);
+                const q = input.value.trim();
+                if (q.length < 2) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+
+                timer = setTimeout(async () => {
+                    try {
+                        const res = await fetch("{{ route('catalog.suggest') }}?q=" + encodeURIComponent(q), {
+                            headers: { 'Accept': 'application/json' }
+                        });
+                        const items = await res.json();
+                        if (!items.length) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+
+                        box.innerHTML = items.map(a => `
+                            <a href="/anime/${a.mal_id}" class="flex items-center gap-3 px-3 py-2 transition hover:bg-slate-800/70">
+                                <img src="${a.image ?? ''}" alt="" class="h-10 w-7 shrink-0 rounded object-cover">
+                                <span class="min-w-0 flex-1 truncate text-sm text-slate-200">${a.title}</span>
+                                <span class="font-mono text-[10px] text-amber-400">★ ${a.score ?? '—'}</span>
+                            </a>
+                        `).join('');
+                        box.classList.remove('hidden');
+                    } catch (e) {
+                        box.classList.add('hidden');
+                    }
+                }, 250);
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!box.contains(e.target) && e.target !== input) {
+                    box.classList.add('hidden');
+                }
+            });
+
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') box.classList.add('hidden');
+            });
         })();
     </script>
 </body>
