@@ -95,7 +95,7 @@
                     <button type="button" id="btn-menu" class="rounded-xl p-2 text-slate-400 transition hover:bg-slate-800 hover:text-white lg:hidden" aria-label="Abrir menú">
                         <i data-lucide="menu" class="size-5"></i>
                     </button>
-                                        <form action="{{ route('catalog.index') }}" method="GET" class="hidden sm:block">
+                    <form action="{{ route('catalog.index') }}" method="GET" class="hidden sm:block">
                         <label class="relative block">
                             <span class="sr-only">Buscar anime</span>
                             <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-500"><i data-lucide="search" class="size-4"></i></span>
@@ -138,9 +138,51 @@
     </div>
     <div id="voice-toast" class="fixed bottom-24 left-1/2 z-50 hidden -translate-x-1/2 rounded-xl px-4 py-3 text-sm text-white" style="background: #111827; border: 1px solid #22c55e"></div>
 
-    {{-- 🏆 POPUP DE LOGROS RECIÉN DESBLOQUEADOS --}}
+    {{-- 🤖 ANIBOT: chat flotante 100% offline --}}
+    <div class="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-3">
+        <div id="anibot-panel" class="hidden w-80 overflow-hidden rounded-3xl border border-[#273244] bg-[#0b1120]/95 shadow-2xl shadow-cyan-500/10 backdrop-blur-xl">
+            <div class="flex items-center gap-3 border-b border-[#273244] bg-gradient-to-r from-cyan-500/10 to-pink-500/10 px-4 py-3">
+                <span class="flex size-9 items-center justify-center rounded-full bg-gradient-to-br from-cyan-400 to-violet-500 text-lg">🤖</span>
+                <div>
+                    <p class="text-sm font-bold text-white">Anibot</p>
+                    <p class="font-mono text-[10px] text-emerald-400">● en línea · 100% offline</p>
+                </div>
+                <button type="button" id="anibot-close" class="ml-auto rounded-lg p-1 text-slate-400 transition hover:bg-slate-800 hover:text-white">✕</button>
+            </div>
+
+            <div id="anibot-log" class="flex h-80 flex-col gap-3 overflow-y-auto p-4"></div>
+
+            <div class="flex flex-wrap gap-1.5 px-4 pb-2">
+                @foreach([
+                    '🌙 ¿Qué veo esta noche?' => '¿Qué veo esta noche?',
+                    '🎲 Sorpréndeme' => 'Sorpréndeme',
+                    '💎 Joyas ocultas' => 'Joyas ocultas',
+                    '📅 Plan del finde' => 'Plan del fin de semana',
+                    '📊 Mi resumen' => 'Mi resumen',
+                ] as $label => $msg)
+                    <button type="button" data-msg="{{ $msg }}" class="anibot-chip rounded-full border border-[#273244] bg-[#111827]/80 px-2.5 py-1 font-mono text-[10px] font-bold text-slate-400 transition hover:border-cyan-400/50 hover:text-cyan-300">
+                        {{ $label }}
+                    </button>
+                @endforeach
+            </div>
+
+            <form id="anibot-form" class="flex gap-2 border-t border-[#273244] p-3">
+                <input type="text" id="anibot-input" autocomplete="off" placeholder="Escribe tu pregunta..."
+                       class="h-9 flex-1 rounded-xl border border-[#273244] bg-[#111827]/80 px-3 text-xs text-slate-200 outline-none placeholder:text-slate-600 focus:border-cyan-400">
+                <button type="submit" class="flex size-9 items-center justify-center rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 text-sm font-bold text-white transition hover:scale-105">➤</button>
+            </form>
+        </div>
+
+        <button type="button" id="anibot-bubble" title="Chatea con Anibot" aria-label="Abrir Anibot"
+                class="flex size-14 items-center justify-center rounded-full text-2xl shadow-lg shadow-cyan-500/30 transition hover:scale-105"
+                style="background: linear-gradient(135deg, #06b6d4, #8b5cf6)">
+            🤖
+        </button>
+    </div>
+
+    {{-- 🏆 POPUP DE LOGROS RECIÉN DESBLOQUEADOS (arriba para no chocar con Anibot) --}}
     @if(session('new_achievements'))
-        <div id="achievement-popup" class="fixed bottom-6 right-6 z-[60] flex w-80 flex-col gap-3">
+        <div id="achievement-popup" class="fixed top-20 right-6 z-[60] flex w-80 flex-col gap-3">
             @foreach(session('new_achievements') as $a)
                 <div class="achievement-toast flex items-center gap-4 rounded-2xl border border-amber-400/40 bg-slate-900/95 p-4 shadow-2xl shadow-amber-500/30 backdrop-blur-xl">
                     <div class="flex size-12 shrink-0 items-center justify-center rounded-xl text-2xl {{ $a->tierColor() }}">
@@ -218,7 +260,8 @@
             };
             btn.onclick = () => rec.start();
         })();
-                // ⚡ Autocompletado del buscador global (BD local, instantáneo)
+
+        // ⚡ Autocompletado del buscador global (BD local, instantáneo)
         (function () {
             const input = document.getElementById('global-search');
             const box = document.getElementById('suggest-box');
@@ -262,6 +305,90 @@
             input.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape') box.classList.add('hidden');
             });
+        })();
+
+        // 🤖 ANIBOT: chat offline
+        (function () {
+            const bubble = document.getElementById('anibot-bubble');
+            const panel = document.getElementById('anibot-panel');
+            const log = document.getElementById('anibot-log');
+            const form = document.getElementById('anibot-form');
+            const input = document.getElementById('anibot-input');
+            if (!bubble || !panel) return;
+
+            function esc(s) { const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; }
+
+            function addBot(text, cards = []) {
+                const wrap = document.createElement('div');
+                wrap.className = 'max-w-[85%] self-start whitespace-pre-line rounded-2xl rounded-bl-sm border border-cyan-400/20 bg-cyan-500/10 px-3 py-2 text-xs leading-relaxed text-slate-200';
+                wrap.textContent = text;
+                log.appendChild(wrap);
+
+                if (cards.length) {
+                    const row = document.createElement('div');
+                    row.className = 'flex gap-2 self-start overflow-x-auto pb-1';
+                    cards.forEach(c => {
+                        const a = document.createElement('a');
+                        a.href = '/anime/' + c.mal_id;
+                        a.className = 'w-24 shrink-0 rounded-xl border border-[#273244] bg-[#111827] p-1.5 transition hover:border-cyan-400/40';
+                        a.innerHTML = '<img src="' + esc(c.image) + '" class="h-28 w-full rounded-lg object-cover" alt="">' +
+                                      '<p class="mt-1 truncate text-[10px] font-semibold text-slate-200">' + esc(c.title) + '</p>' +
+                                      '<p class="font-mono text-[9px] text-amber-400">★ ' + (c.score ?? '—') + '</p>';
+                        row.appendChild(a);
+                    });
+                    log.appendChild(row);
+                }
+                log.scrollTop = log.scrollHeight;
+            }
+
+            function addUser(text) {
+                const wrap = document.createElement('div');
+                wrap.className = 'max-w-[85%] self-end rounded-2xl rounded-br-sm bg-gradient-to-r from-pink-500/20 to-violet-500/20 px-3 py-2 text-xs text-slate-100';
+                wrap.textContent = text;
+                log.appendChild(wrap);
+                log.scrollTop = log.scrollHeight;
+            }
+
+            async function send(msg) {
+                msg = (msg || '').trim();
+                if (!msg) return;
+                addUser(msg);
+
+                const thinking = document.createElement('div');
+                thinking.className = 'self-start font-mono text-[10px] text-slate-500';
+                thinking.textContent = '🤖 Anibot está pensando...';
+                log.appendChild(thinking);
+                log.scrollTop = log.scrollHeight;
+
+                try {
+                    const res = await fetch("{{ route('anibot.chat') }}", {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                        },
+                        body: JSON.stringify({ message: msg })
+                    });
+                    const data = await res.json();
+                    thinking.remove();
+                    addBot(data.text || '...', data.cards || []);
+                } catch (e) {
+                    thinking.remove();
+                    addBot('⚠️ No pude responderte ahora mismo. Intenta de nuevo.');
+                }
+            }
+
+            bubble.onclick = () => {
+                panel.classList.toggle('hidden');
+                if (!panel.classList.contains('hidden') && !log.children.length) {
+                    addBot('¡Hola! Soy Anibot 🤖 tu asistente anime 100% offline. Toca los botones de abajo o escríbeme lo que quieras.');
+                }
+                input?.focus();
+            };
+            document.getElementById('anibot-close').onclick = () => panel.classList.add('hidden');
+            form.onsubmit = (e) => { e.preventDefault(); send(input.value); input.value = ''; };
+            document.querySelectorAll('.anibot-chip').forEach(ch => ch.onclick = () => send(ch.dataset.msg));
         })();
     </script>
 </body>

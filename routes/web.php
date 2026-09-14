@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\CatalogController;
 use App\Http\Controllers\AnimeListController;
 use App\Http\Controllers\AchievementController;
+use App\Http\Controllers\AnibotController;
 
 Route::middleware(['auth'])->group(function () {
     Route::get('/catalog', [CatalogController::class, 'index'])->name('catalog.index');
@@ -25,7 +26,8 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/mylist-import-json', [AnimeListController::class, 'importJson'])->name('mylist.importJson');
     Route::get('/recap', [App\Http\Controllers\DashboardController::class, 'recap'])->name('recap');
         Route::get('/achievements', [AchievementController::class, 'index'])->name('achievements.index');
-    });
+        Route::post('/anibot/chat', [AnibotController::class, 'chat'])->name('anibot.chat');
+        });
 
 Route::get('/', function () {
     return auth()->check()
