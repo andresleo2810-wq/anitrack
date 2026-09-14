@@ -230,11 +230,12 @@
                     </section>
                 @endif
 
-                {{-- Formulario Mi Lista --}}
-                <section class="rounded-3xl border border-slate-700/80 bg-slate-900/75 p-6 backdrop-blur-xl">
+                                {{-- Formulario Mi Lista PRO --}}
+                <section id="mylist-form" data-total-eps="{{ $anime['episodes'] ?? 0 }}"
+                         class="rounded-3xl border border-slate-700/80 bg-slate-900/75 p-6 backdrop-blur-xl">
                     <h2 class="text-sm font-bold text-white">{{ $userAnime ? '💾 Actualizar mi lista' : '+ Agregar a mi lista' }}</h2>
 
-                    <form method="POST" action="{{ route('mylist.store') }}" class="mt-4 space-y-4">
+                    <form method="POST" action="{{ route('mylist.store') }}" class="mt-4 space-y-5">
                         @csrf
                         <input type="hidden" name="mal_id" value="{{ $anime['mal_id'] }}">
                         <input type="hidden" name="title" value="{{ $anime['title'] }}">
@@ -243,34 +244,69 @@
                         <input type="hidden" name="episodes_api" value="{{ $anime['episodes'] ?? null }}">
                         <input type="hidden" name="genres" value="{{ json_encode(collect($anime['genres'] ?? [])->map(fn($g) => is_array($g) ? ($g['name'] ?? '') : $g)->values()) }}">
 
+                        {{-- Estado --}}
                         <div>
                             <label class="text-xs font-semibold text-slate-400">Estado</label>
-                            <select name="status" class="mt-1 w-full cursor-pointer rounded-xl border border-[#273244] bg-[#111827]/80 px-3 py-2 text-sm text-slate-200 outline-none focus:border-cyan-400">
+                            <select name="status" id="status-select" class="mt-1 w-full cursor-pointer rounded-xl border border-[#273244] bg-[#111827]/80 px-3 py-2 text-sm text-slate-200 outline-none focus:border-cyan-400">
                                 @foreach(\App\Models\UserAnime::STATUS_LABELS as $value => $label)
                                     <option value="{{ $value }}" {{ ($userAnime->status ?? 'plan_to_watch') === $value ? 'selected' : '' }}>{{ $label }}</option>
                                 @endforeach
                             </select>
                         </div>
 
-                        <div class="grid grid-cols-2 gap-3">
-                            <div>
-                                <label class="text-xs font-semibold text-slate-400">Tu puntuación (1-10)</label>
-                                <input type="number" name="score" min="1" max="10" value="{{ $userAnime->score ?? '' }}"
-                                       class="mt-1 w-full rounded-xl border border-[#273244] bg-[#111827]/80 px-3 py-2 text-sm text-slate-200 outline-none focus:border-cyan-400">
+                        {{-- ⭐ Puntuación neón 1-10 --}}
+                        <div>
+                            <label class="text-xs font-semibold text-slate-400">Tu puntuación</label>
+                            <input type="hidden" name="score" id="score-input" value="{{ $userAnime->score ?? '' }}">
+                            <div class="mt-2 grid grid-cols-10 gap-1">
+                                @for($i = 1; $i <= 10; $i++)
+                                    <button type="button" data-score="{{ $i }}"
+                                            class="score-btn flex h-8 items-center justify-center rounded-lg border border-[#273244] bg-[#111827]/80 font-mono text-xs font-bold text-slate-500 transition hover:scale-105 hover:border-amber-400/50 hover:text-amber-300">
+                                        {{ $i }}
+                                    </button>
+                                @endfor
                             </div>
-                            <div>
+                            <p id="score-label" class="mt-1.5 font-mono text-[10px] text-slate-500">Sin puntuar</p>
+                        </div>
+
+                        {{-- 🎚️ Episodios con stepper + progreso --}}
+                        <div>
+                            <div class="flex items-center justify-between">
                                 <label class="text-xs font-semibold text-slate-400">Episodios vistos</label>
-                                <input type="number" name="episodes_watched" min="0" value="{{ $userAnime->episodes_watched ?? 0 }}"
-                                       class="mt-1 w-full rounded-xl border border-[#273244] bg-[#111827]/80 px-3 py-2 text-sm text-slate-200 outline-none focus:border-cyan-400">
+                                <span id="eps-label" class="font-mono text-[10px] font-bold text-cyan-400"></span>
+                            </div>
+                            <input type="hidden" name="episodes_watched" id="eps-input" value="{{ $userAnime->episodes_watched ?? 0 }}">
+
+                            <div class="mt-2 flex items-center gap-2">
+                                <button type="button" id="eps-minus"
+                                        class="flex size-9 shrink-0 items-center justify-center rounded-xl border border-[#273244] bg-[#111827]/80 font-mono text-lg font-bold text-slate-300 transition hover:border-cyan-400/50 hover:text-cyan-300">−</button>
+                                <div id="eps-display" class="flex-1 text-center font-mono text-lg font-bold text-white">0</div>
+                                <button type="button" id="eps-plus"
+                                        class="flex size-9 shrink-0 items-center justify-center rounded-xl border border-[#273244] bg-[#111827]/80 font-mono text-lg font-bold text-slate-300 transition hover:border-cyan-400/50 hover:text-cyan-300">+</button>
+                            </div>
+
+                            <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-800">
+                                <div id="eps-bar" class="h-full rounded-full bg-gradient-to-r from-cyan-400 to-pink-500 transition-all duration-300" style="width: 0%"></div>
+                            </div>
+
+                            <div class="mt-2 flex gap-2">
+                                <button type="button" data-eps-add="1"
+                                        class="eps-quick flex-1 rounded-lg border border-[#273244] bg-[#111827]/80 py-1.5 font-mono text-[11px] font-bold text-slate-400 transition hover:border-cyan-400/50 hover:text-cyan-300">+1</button>
+                                <button type="button" data-eps-add="5"
+                                        class="eps-quick flex-1 rounded-lg border border-[#273244] bg-[#111827]/80 py-1.5 font-mono text-[11px] font-bold text-slate-400 transition hover:border-cyan-400/50 hover:text-cyan-300">+5</button>
+                                <button type="button" id="eps-max"
+                                        class="flex-1 rounded-lg border border-pink-400/30 bg-pink-500/10 py-1.5 font-mono text-[11px] font-bold text-pink-300 transition hover:bg-pink-500/20">⏭ MAX</button>
                             </div>
                         </div>
 
+                        {{-- Notas --}}
                         <div>
                             <label class="text-xs font-semibold text-slate-400">📝 Notas personales</label>
                             <textarea name="notes" rows="2" placeholder="Ej: ver manga después, el OST es increíble..."
                                       class="mt-1 w-full rounded-xl border border-[#273244] bg-[#111827]/80 px-3 py-2 text-sm text-slate-200 outline-none placeholder:text-slate-600 focus:border-cyan-400">{{ $userAnime->notes ?? '' }}</textarea>
                         </div>
 
+                        {{-- Fechas --}}
                         <div class="grid grid-cols-2 gap-3">
                             <div>
                                 <label class="text-xs font-semibold text-slate-400">📅 Empezado</label>
@@ -284,6 +320,7 @@
                             </div>
                         </div>
 
+                        {{-- Acciones --}}
                         <div class="flex flex-wrap gap-3 pt-1">
                             <button type="submit"
                                     class="flex-1 rounded-2xl bg-gradient-to-r from-pink-500 to-violet-500 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-pink-500/20 transition hover:scale-[1.02] focus-visible:ring-2 focus-visible:ring-pink-400">
@@ -329,6 +366,67 @@
                 btn.classList.add('hidden');
             };
         }
+       })();
+
+    // 🎨 Formulario PRO: score neón + stepper eps + autocompletado
+    (function () {
+        const section = document.getElementById('mylist-form');
+        if (!section) return;
+        const total = parseInt(section.dataset.totalEps) || 0;
+
+        // ⭐ Score 1-10
+        const scoreInput = document.getElementById('score-input');
+        const scoreLabel = document.getElementById('score-label');
+        const btns = section.querySelectorAll('.score-btn');
+        const palabras = {1:'😖 Insoportable',2:'😞 Muy malo',3:'😕 Malo',4:'😐 Flojo',5:'😑 Mediocre',6:'🙂 Pasable',7:'😊 Bueno',8:'😍 Muy bueno',9:'🤩 Excelente',10:'🏆 Obra maestra'};
+
+        function paintScore(v) {
+            btns.forEach(b => {
+                const on = parseInt(b.dataset.score) === v;
+                b.className = 'score-btn flex h-8 items-center justify-center rounded-lg font-mono text-xs font-bold transition hover:scale-105 ' + (on
+                    ? 'bg-gradient-to-br from-amber-400 to-pink-500 text-white shadow-lg shadow-amber-500/30 scale-110 border-transparent'
+                    : 'border border-[#273244] bg-[#111827]/80 text-slate-500 hover:border-amber-400/50 hover:text-amber-300');
+            });
+            scoreLabel.textContent = v ? palabras[v] + ' · ★' + v : 'Sin puntuar';
+        }
+        btns.forEach(b => b.onclick = () => {
+            const v = parseInt(b.dataset.score);
+            scoreInput.value = (parseInt(scoreInput.value) === v) ? '' : v;
+            paintScore(parseInt(scoreInput.value) || 0);
+        });
+        paintScore(parseInt(scoreInput.value) || 0);
+
+        // 🎚️ Episodios
+        const epsInput = document.getElementById('eps-input');
+        const epsDisplay = document.getElementById('eps-display');
+        const epsBar = document.getElementById('eps-bar');
+        const epsLabel = document.getElementById('eps-label');
+
+        function paintEps() {
+            const v = parseInt(epsInput.value) || 0;
+            epsDisplay.textContent = total ? v + ' / ' + total : String(v);
+            epsLabel.textContent = total ? Math.round(v / total * 100) + '%' : '';
+            epsBar.style.width = total ? Math.min(100, v / total * 100) + '%' : (v > 0 ? '100%' : '0%');
+        }
+        function setEps(v) {
+            v = Math.max(0, v);
+            if (total) v = Math.min(total, v);
+            epsInput.value = v;
+            paintEps();
+        }
+
+        document.getElementById('eps-minus').onclick = () => setEps((parseInt(epsInput.value) || 0) - 1);
+        document.getElementById('eps-plus').onclick = () => setEps((parseInt(epsInput.value) || 0) + 1);
+        section.querySelectorAll('.eps-quick').forEach(b => b.onclick = () => setEps((parseInt(epsInput.value) || 0) + parseInt(b.dataset.epsAdd)));
+        document.getElementById('eps-max').onclick = () => setEps(total || 9999);
+
+        // 🤖 Autocompletado por estado
+        document.getElementById('status-select').addEventListener('change', function () {
+            if (this.value === 'completed' && total) setEps(total);
+            if (this.value === 'plan_to_watch') setEps(0);
+        });
+
+        paintEps();
     })();
     </script>
 </x-app-layout>
