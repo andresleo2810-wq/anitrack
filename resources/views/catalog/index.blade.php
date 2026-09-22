@@ -4,17 +4,18 @@
         {{-- HERO CATÁLOGO --}}
         <section class="flex flex-col justify-between gap-6 lg:flex-row lg:items-center">
             <div class="flex flex-col gap-3">
-                <p class="text-xs font-bold uppercase tracking-[0.25em] text-cyan-400">Explora el universo anime</p>
-                <h1 class="text-4xl font-extrabold tracking-tight text-white sm:text-5xl">
-                    Catálogo <span class="text-pink-400">✦</span>
+                <p class="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-cyan-400">Explora el universo anime</p>
+                <h1 class="flex items-center gap-3 text-4xl font-extrabold tracking-tight text-white sm:text-5xl">
+                    Catálogo
+                    <span class="inline-block size-3 rounded-full bg-gradient-to-br from-pink-400 to-fuchsia-500 shadow-lg shadow-pink-500/60" aria-hidden="true"></span>
                 </h1>
-                <p class="text-sm text-slate-500">Encuentra tu próxima obsesión. Busca, filtra, descubre.</p>
+                <p class="max-w-lg text-sm text-slate-400">Encuentra tu próxima obsesión. Busca, filtra, descubre.</p>
             </div>
         </section>
 
-        {{-- FILTROS GLASS --}}
+        {{-- 🎛️ FILTROS GLASS --}}
         <form method="GET" action="{{ route('catalog.index') }}"
-              class="rounded-3xl border border-slate-700/80 bg-slate-900/75 p-5 backdrop-blur-xl">
+              class="rounded-2xl border border-white/5 bg-[#111528]/80 p-5 backdrop-blur-xl">
             {{-- Filtros básicos --}}
             <div class="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-5">
                 <div class="relative">
@@ -22,21 +23,25 @@
                         <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="m21 21-5.2-5.2M10 17a7 7 0 1 1 0-14 7 7 0 0 1 0 14Z"/></svg>
                     </span>
                     <input type="text" name="q" value="{{ $filters['q'] }}" placeholder="Buscar anime..."
-                           class="h-11 w-full rounded-2xl border border-[#273244] bg-[#111827]/80 pl-10 pr-10 text-sm text-slate-200 outline-none placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20">
+                           class="h-11 w-full rounded-xl border border-white/10 bg-[#0b0d1c] pl-10 pr-10 text-sm text-slate-200 outline-none placeholder:text-slate-500 focus:border-cyan-400/60 focus:ring-2 focus:ring-cyan-400/20">
                     <button type="button" id="btn-voz" title="Buscar por voz" aria-label="Buscar por voz"
                             class="absolute inset-y-0 right-1 flex size-9 items-center justify-center rounded-xl text-pink-400 transition hover:bg-pink-500/10">
                         <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3ZM19 10v2a7 7 0 0 1-14 0v-2M12 19v3"/></svg>
                     </button>
                 </div>
 
-                <select name="genre" class="h-11 cursor-pointer rounded-2xl border border-[#273244] bg-[#111827]/80 px-3 text-sm text-slate-200 outline-none focus:border-cyan-400">
+                @php
+                    $selectClass = 'h-11 cursor-pointer rounded-xl border border-white/10 bg-[#0b0d1c] px-3 text-sm text-slate-200 outline-none focus:border-cyan-400/60 focus:ring-2 focus:ring-cyan-400/20';
+                @endphp
+
+                <select name="genre" class="{{ $selectClass }}">
                     <option value="">Todos los géneros</option>
                     @foreach(\App\Services\JikanService::GENRES_ES as $es)
                         <option value="{{ $es }}" @selected($filters['genre'] === $es)>{{ $es }}</option>
                     @endforeach
                 </select>
 
-                <select name="type" class="h-11 cursor-pointer rounded-2xl border border-[#273244] bg-[#111827]/80 px-3 text-sm text-slate-200 outline-none focus:border-cyan-400">
+                <select name="type" class="{{ $selectClass }}">
                     <option value="">Todos los tipos</option>
                     <option value="TV" @selected($filters['type'] === 'TV')>TV</option>
                     <option value="MOVIE" @selected($filters['type'] === 'MOVIE')>Película</option>
@@ -44,14 +49,14 @@
                     <option value="ONA" @selected($filters['type'] === 'ONA')>ONA</option>
                 </select>
 
-                <select name="min_score" class="h-11 cursor-pointer rounded-2xl border border-[#273244] bg-[#111827]/80 px-3 text-sm text-slate-200 outline-none focus:border-cyan-400">
+                <select name="min_score" class="{{ $selectClass }}">
                     <option value="0">Cualquier puntuación</option>
                     <option value="7" @selected($filters['min_score'] == 7)>★ 7+</option>
                     <option value="8" @selected($filters['min_score'] == 8)>★ 8+</option>
                     <option value="9" @selected($filters['min_score'] == 9)>★ 9+</option>
                 </select>
 
-                <select name="year" class="h-11 cursor-pointer rounded-2xl border border-[#273244] bg-[#111827]/80 px-3 text-sm text-slate-200 outline-none focus:border-cyan-400">
+                <select name="year" class="{{ $selectClass }}">
                     <option value="">Todos los años</option>
                     @for($y = now()->year; $y >= 1990; $y--)
                         <option value="{{ $y }}" @selected($filters['year'] === $y)>{{ $y }}</option>
@@ -60,19 +65,19 @@
             </div>
 
             {{-- ⚙️ Filtros avanzados (colapsables) --}}
-            <details class="mt-4">
-                <summary class="cursor-pointer font-mono text-xs font-bold uppercase tracking-wider text-cyan-400 hover:text-cyan-300">
+            <details class="mt-4 group">
+                <summary class="cursor-pointer select-none font-mono text-[11px] font-bold uppercase tracking-[0.22em] text-cyan-400 transition hover:text-cyan-300">
                     ⚙️ Filtros avanzados
                 </summary>
                 <div class="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-5">
-                    <select name="status" class="h-11 cursor-pointer rounded-2xl border border-[#273244] bg-[#111827]/80 px-3 text-sm text-slate-200 outline-none focus:border-cyan-400">
+                    <select name="status" class="{{ $selectClass }}">
                         <option value="">Todos los estados</option>
                         <option value="airing" @selected($filters['status'] === 'airing')>En emisión</option>
                         <option value="complete" @selected($filters['status'] === 'complete')>Finalizado</option>
                         <option value="upcoming" @selected($filters['status'] === 'upcoming')>Próximamente</option>
                     </select>
 
-                    <select name="season" class="h-11 cursor-pointer rounded-2xl border border-[#273244] bg-[#111827]/80 px-3 text-sm text-slate-200 outline-none focus:border-cyan-400">
+                    <select name="season" class="{{ $selectClass }}">
                         <option value="">Todas las temporadas</option>
                         <option value="winter" @selected($filters['season'] === 'winter')>❄️ Invierno</option>
                         <option value="spring" @selected($filters['season'] === 'spring')>🌸 Primavera</option>
@@ -80,7 +85,7 @@
                         <option value="fall" @selected($filters['season'] === 'fall')>🍂 Otoño</option>
                     </select>
 
-                    <select name="order" class="h-11 cursor-pointer rounded-2xl border border-[#273244] bg-[#111827]/80 px-3 text-sm text-slate-200 outline-none focus:border-cyan-400">
+                    <select name="order" class="{{ $selectClass }}">
                         <option value="">Orden: por defecto</option>
                         <option value="score" @selected($filters['order'] === 'score')>Mejor puntuados</option>
                         <option value="popularity" @selected($filters['order'] === 'popularity')>Más populares</option>
@@ -88,14 +93,14 @@
                         <option value="recent" @selected($filters['order'] === 'recent')>Más recientes</option>
                     </select>
 
-                    <select name="letter" class="h-11 cursor-pointer rounded-2xl border border-[#273244] bg-[#111827]/80 px-3 text-sm text-slate-200 outline-none focus:border-cyan-400">
+                    <select name="letter" class="{{ $selectClass }}">
                         <option value="">Todas las letras</option>
                         @foreach(range('A', 'Z') as $l)
                             <option value="{{ $l }}" @selected($filters['letter'] === $l)>{{ $l }}</option>
                         @endforeach
                     </select>
 
-                    <select name="exclude" class="h-11 cursor-pointer rounded-2xl border border-[#273244] bg-[#111827]/80 px-3 text-sm text-slate-200 outline-none focus:border-cyan-400">
+                    <select name="exclude" class="{{ $selectClass }}">
                         <option value="">Excluir género: ninguno</option>
                         @foreach(\App\Services\JikanService::GENRES_ES as $es)
                             <option value="{{ $es }}" @selected($filters['exclude'] === $es)>{{ $es }}</option>
@@ -105,18 +110,21 @@
             </details>
 
             {{-- 🧭 Tabs de modo --}}
-            <div class="mt-4 flex flex-wrap gap-2">
+            <div class="mt-5 flex flex-wrap gap-2">
                 @foreach(['top' => '⭐ Top', 'popular' => '🔥 Popular', 'airing' => '📺 Emitiéndose', 'upcoming' => '📅 Próximamente'] as $key => $label)
                     <a href="{{ route('catalog.index', ['mode' => $key]) }}"
-                       class="{{ $filters['mode'] === $key ? 'bg-gradient-to-r from-pink-500 to-violet-500 text-white shadow-lg shadow-pink-500/20' : 'border border-[#273244] text-slate-400 hover:text-white' }} rounded-full px-4 py-2 font-mono text-xs font-bold transition">
+                       class="{{ $filters['mode'] === $key
+                            ? 'bg-gradient-to-r from-pink-500 via-fuchsia-500 to-violet-600 text-white shadow-lg shadow-pink-500/30'
+                            : 'border border-white/10 bg-white/5 text-slate-400 hover:border-white/20 hover:text-white'
+                        }} rounded-full px-4 py-2 font-mono text-xs font-bold tracking-wide transition">
                         {{ $label }}
                     </a>
                 @endforeach
             </div>
 
-            <div class="mt-4 flex items-center gap-3">
+            <div class="mt-5 flex flex-wrap items-center gap-3">
                 <button type="submit"
-                        class="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-pink-500 to-violet-500 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-pink-500/20 transition hover:scale-[1.02] focus-visible:ring-2 focus-visible:ring-pink-400">
+                        class="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-pink-500 via-fuchsia-500 to-violet-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-pink-500/30 transition hover:scale-[1.02] focus-visible:ring-2 focus-visible:ring-pink-400">
                     <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m21 21-5.2-5.2M10 17a7 7 0 1 1 0-14 7 7 0 0 1 0 14Z"/></svg>
                     Filtrar
                 </button>
@@ -126,11 +134,16 @@
 
         {{-- 📴 Aviso modo offline --}}
         @if(!empty($offline))
-            <div class="flex items-start gap-3 rounded-2xl border border-amber-400/20 bg-amber-500/10 p-4 text-sm text-amber-300 backdrop-blur">
-                <span class="text-lg">📴</span>
-                <div>
-                    <p class="font-bold">Modo offline activado</p>
-                    <p class="mt-1 text-xs text-amber-200/70">MyAnimeList y AniList están caídos ahora mismo. Mostrando tu colección local — la app se reconectará sola cuando los servicios revivan.</p>
+            <div class="relative overflow-hidden rounded-2xl border border-amber-400/30 bg-gradient-to-r from-amber-500/10 via-[#111528] to-[#111528] p-4 backdrop-blur-xl">
+                <div aria-hidden="true" class="pointer-events-none absolute -right-10 -top-10 size-40 rounded-full bg-amber-500/20 blur-3xl"></div>
+                <div class="relative flex items-start gap-3">
+                    <span class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-300">
+                        <svg class="size-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12.5a7 7 0 1 1 14 0M8.5 16.5a5 5 0 0 1 7 0M12 20h.01M2 2l20 20"/></svg>
+                    </span>
+                    <div>
+                        <p class="text-sm font-bold text-white">Modo offline activado</p>
+                        <p class="mt-1 text-xs text-slate-400">MyAnimeList y AniList están caídos ahora mismo. Mostrando tu colección local — la app se reconectará sola cuando los servicios revivan.</p>
+                    </div>
                 </div>
             </div>
         @endif
@@ -138,13 +151,13 @@
         {{-- 🎯 RESULTADOS --}}
         @if(count($animeList) > 0)
             <section>
-                <div class="mb-6 flex items-end justify-between gap-4">
+                <div class="mb-5 flex items-end justify-between gap-4">
                     <div>
                         <h2 class="text-lg font-bold text-white">
                             {{ ['top' => '⭐ Top histórico', 'popular' => '🔥 Más populares', 'airing' => '📺 Emitiéndose ahora', 'upcoming' => '📅 Próximamente'][$filters['mode']] ?? 'Resultados' }}
                             <span class="ml-2 font-mono text-sm text-slate-500">({{ count($animeList) }}{{ $hasMore ? '+' : '' }})</span>
                         </h2>
-                        <p class="mt-1 text-xs text-slate-500">
+                        <p class="mt-1 font-mono text-[11px] uppercase tracking-wider text-slate-500">
                             @if($filters['q'])
                                 Búsqueda: "{{ $filters['q'] }}"
                             @elseif($filters['year'])
@@ -156,7 +169,7 @@
                     </div>
                 </div>
 
-                <div id="anime-grid" class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+                <div id="anime-grid" class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 sm:gap-4">
                     @include('catalog._anime_grid', ['animeList' => $animeList])
                 </div>
 
@@ -166,20 +179,23 @@
                     <button id="btn-load-more"
                             data-page="{{ $page }}"
                             data-has-more="{{ $hasMore ? '1' : '0' }}"
-                            class="{{ !$hasMore ? 'hidden' : '' }} inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-cyan-500 to-violet-500 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-cyan-500/20 transition hover:scale-[1.02] focus-visible:ring-2 focus-visible:ring-cyan-400">
-                        <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14M5 12h14"/></svg>
+                            class="{{ !$hasMore ? 'hidden' : '' }} group inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-cyan-500 via-violet-500 to-fuchsia-500 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-cyan-500/30 transition hover:scale-[1.02] focus-visible:ring-2 focus-visible:ring-cyan-400">
+                        <svg class="size-4 transition group-hover:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14M5 12h14"/></svg>
                         Cargar más anime
                     </button>
                     @if(!$hasMore)
-                        <p class="text-sm text-slate-500">Has visto todos los resultados.</p>
+                        <p class="font-mono text-[11px] uppercase tracking-[0.22em] text-slate-500">Has visto todos los resultados</p>
                     @endif
                 </div>
             </section>
         @else
-            <section class="rounded-3xl border border-slate-700/80 bg-slate-900/75 p-12 text-center backdrop-blur-xl">
-                <p class="text-5xl">🔍</p>
-                <h3 class="mt-4 text-lg font-bold text-white">No se encontraron resultados</h3>
-                <p class="mt-2 text-sm text-slate-500">Intenta con otros criterios o limpia los filtros.</p>
+            <section class="relative overflow-hidden rounded-2xl border border-white/5 bg-[#111528]/80 p-12 text-center backdrop-blur-xl">
+                <div aria-hidden="true" class="pointer-events-none absolute -right-10 -top-10 size-40 rounded-full bg-pink-500/10 blur-3xl"></div>
+                <div class="relative">
+                    <p class="text-5xl">🔍</p>
+                    <h3 class="mt-4 text-lg font-bold text-white">No se encontraron resultados</h3>
+                    <p class="mt-2 font-mono text-[11px] uppercase tracking-wider text-slate-500">Intenta con otros criterios o limpia los filtros.</p>
+                </div>
             </section>
         @endif
     </div>
@@ -232,7 +248,7 @@
 
                 btnLoad.dataset.page = page;
                 btnLoad.disabled = false;
-                btnLoad.innerHTML = '<svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14M5 12h14"/></svg> Cargar más anime';
+                btnLoad.innerHTML = '<svg class="size-4 transition group-hover:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14M5 12h14"/></svg> Cargar más anime';
                 btnLoad.className = btnLoad.className.replace('hidden', '').trim();
 
                 if (!data.hasMore) {

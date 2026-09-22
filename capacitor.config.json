@@ -1,0 +1,9 @@
+{
+  "appId": "com.anitrack.app",
+  "appName": "AniTrack",
+  "webDir": "public",
+  "server": {
+    "url": "https://yes-voice-luis-prospective.trycloudflare.com",
+    "androidScheme": "https"
+  }
+}

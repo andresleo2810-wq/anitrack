@@ -6,11 +6,26 @@ use App\Http\Controllers\CatalogController;
 use App\Http\Controllers\AnimeListController;
 use App\Http\Controllers\AchievementController;
 use App\Http\Controllers\AnibotController;
+use App\Http\Controllers\NewsController;
 
+// 👤 Modo invitado: entra al dashboard sin registrarse
+Route::get('/explore', function () {
+    $guest = \App\Models\User::firstOrCreate(
+        ['email' => 'invitado@anitrack.app'],
+        [
+            'name' => 'Invitado',
+            'password' => \Illuminate\Support\Facades\Hash::make('invitado123'),
+            'email_verified_at' => now(),
+        ]
+    );
+    \Illuminate\Support\Facades\Auth::login($guest);
+    return redirect()->route('dashboard');
+})->name('explore');
 Route::middleware(['auth'])->group(function () {
     Route::get('/catalog', [CatalogController::class, 'index'])->name('catalog.index');
     Route::get('/anime/{malId}', [CatalogController::class, 'show'])->name('catalog.show');
     Route::get('/catalog/suggest', [CatalogController::class, 'suggest'])->name('catalog.suggest');
+    Route::get('/news', [NewsController::class, 'index'])->name('news.index');
     Route::get('/mylist', [AnimeListController::class, 'index'])->name('mylist.index');
     Route::post('/mylist', [AnimeListController::class, 'store'])->name('mylist.store');
     Route::put('/mylist/{userAnime}', [AnimeListController::class, 'update'])->name('mylist.update');
@@ -25,9 +40,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/mylist-export', [AnimeListController::class, 'export'])->name('mylist.export');
     Route::post('/mylist-import-json', [AnimeListController::class, 'importJson'])->name('mylist.importJson');
     Route::get('/recap', [App\Http\Controllers\DashboardController::class, 'recap'])->name('recap');
-        Route::get('/achievements', [AchievementController::class, 'index'])->name('achievements.index');
-        Route::post('/anibot/chat', [AnibotController::class, 'chat'])->name('anibot.chat');
-        });
+    Route::get('/achievements', [AchievementController::class, 'index'])->name('achievements.index');
+    Route::post('/anibot/chat', [AnibotController::class, 'chat'])->name('anibot.chat');
+});
 
 Route::get('/', function () {
     return auth()->check()

@@ -250,7 +250,8 @@ class JikanService
 
         return $data;
     }
-        /** Página cruda del catálogo completo (para sync masivo) */
+
+    /** Página cruda del catálogo completo (para sync masivo) */
     public function rawAnimePage(int $page, int $limit = 25): array
     {
         return $this->jikan('/anime', ['page' => $page, 'limit' => $limit, 'sfw' => 'true']);
@@ -292,14 +293,19 @@ class JikanService
             return $this->mapAnilist($media);
         });
     }
-
     protected function cached(string $key, int $hours, callable $fetch): array
     {
-        return Cache::remember($key, now()->addHours($hours), function () use ($key, $fetch) {
-            $data = $fetch();
-            if (empty($data)) Cache::forget($key);
-            return $data;
-        });
+        $hit = Cache::get($key);
+        if ($hit !== null) return $hit;
+
+        $data = $fetch();
+
+        // Solo cachea éxitos: los fallos nunca se congelan
+        if (!empty($data)) {
+            Cache::put($key, $data, now()->addHours($hours));
+        }
+
+        return $data;
     }
 
     /** Anime similares (Jikan → AniList fallback) */
@@ -538,6 +544,47 @@ class JikanService
                 'openings' => $data['openings'] ?? [],
                 'endings' => $data['endings'] ?? [],
             ];
+        });
+    }
+
+    // ============ 📰 RADAR OTAKU (watch) ============
+
+    /** 📺 Últimos episodios emitidos (Jikan → AniList fallback) */
+    public function getWatchEpisodes(int $limit = 12): array
+    {
+        return $this->cached('watch_eps', 1, function () use ($limit) {
+            $data = $this->jikan('/watch/episodes');
+            $data = array_values(array_filter($data, fn($e) => !empty($e['mal_id'])));
+            if (!empty($data)) return array_slice($data, 0, $limit);
+
+            // 🛡️ Fallback AniList: episodios emitidos más recientes (globales)
+            $q = 'query($n:Int){ Page(perPage:$n){ airingSchedules(sort:TIME_DESC, notYetAired:false){ airingAt episode media{ idMal title{ romaji } coverImage{ large } } } } }';
+            $res = $this->anilist($q, ['n' => $limit * 2]);
+
+            return collect($res['Page']['airingSchedules'] ?? [])
+                ->filter(fn($s) => !empty($s['media']['idMal']))
+                ->map(fn($s) => [
+                    'mal_id' => $s['media']['idMal'],
+                    'title' => $s['media']['title']['romaji'] ?? 'Sin título',
+                    'image_url' => $s['media']['coverImage']['large'] ?? null,
+                    'episode' => $s['episode'] ?? null,
+                ])
+                ->unique('mal_id')
+                ->take($limit)
+                ->values()
+                ->all();
+        });
+    }
+    /** 🎬 Promos recientes (Jikan /watch/promos) */
+    public function getWatchPromos(int $limit = 8): array
+    {
+        return $this->cached('watch_promos', 1, function () use ($limit) {
+            $data = $this->jikan('/watch/promos');
+            return array_slice(
+                array_values(array_filter($data, fn($p) => !empty($p['mal_id']))),
+                0,
+                $limit
+            );
         });
     }
 }

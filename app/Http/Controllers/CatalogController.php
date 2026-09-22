@@ -236,6 +236,19 @@ class CatalogController extends Controller
             $similar = $this->recs->similarTo($local);
         }
 
+                // 🎵 OP/ED: Jikan si vive + caché permanente en BD local
+        $themes = ['openings' => [], 'endings' => []];
+        if (!($anime['offline'] ?? false)) {
+            $themes = $this->jikan->getThemes($malId);
+            if ($local && (!empty($themes['openings']) || !empty($themes['endings']))) {
+                $local->themes = json_encode($themes);
+                $local->saveQuietly();
+            }
+        }
+        if (empty($themes['openings']) && empty($themes['endings']) && $local && !empty($local->themes)) {
+            $themes = json_decode($local->themes, true) ?: $themes;
+        }
+
         return view('catalog.show', [
             'anime' => $anime,
             'userAnime' => $userAnime,
@@ -243,7 +256,7 @@ class CatalogController extends Controller
             'characters' => ($anime['offline'] ?? false) ? [] : $this->jikan->getCharacters($malId),
             'relations' => ($anime['offline'] ?? false) ? [] : $this->jikan->getRelations($malId),
             'pictures' => ($anime['offline'] ?? false) ? [] : $this->jikan->getPictures($malId),
-            'themes' => ($anime['offline'] ?? false) ? ['openings' => [], 'endings' => []] : $this->jikan->getThemes($malId),
+            'themes' => $themes,
         ]);
     }
         /** ⚡ Sugerencias instantáneas del buscador (BD local, 0 APIs) */

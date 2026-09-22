@@ -44,11 +44,12 @@ class DashboardController extends Controller
             'dropped' => '#ef4444',
         ];
 
-        // 🤖 IA de recomendaciones
+               // 🤖 IA de recomendaciones (Jikan + fallback local)
         $topGenres = $byGenre->keys()->take(2)->values();
         $recommendations = collect();
+        $myMalIds = $items->pluck('anime.mal_id')->filter()->values()->all();
 
-               if ($topGenres->isNotEmpty()) {
+        if ($topGenres->isNotEmpty()) {
             $genreEn = array_search($topGenres->first(), JikanService::GENRES_ES, true) ?: null;
 
             if ($genreEn) {
@@ -59,11 +60,27 @@ class DashboardController extends Controller
                             'genre_en' => $genreEn,
                             'min_score' => 8,
                         ]))
-                        ->whereNotIn('mal_id', $items->pluck('anime.mal_id'))
+                        ->whereNotIn('mal_id', $myMalIds)
                         ->take(6)
                         ->values()
                 );
             }
+        }
+
+        // Fallback offline: anime populares de tu BD que no tengas
+        if ($recommendations->isEmpty()) {
+            $recommendations = \App\Models\Anime::whereNotIn('mal_id', $myMalIds)
+                ->whereNotNull('score')
+                ->orderByDesc('score')
+                ->orderByDesc('popularity')
+                ->take(6)
+                ->get()
+                ->map(fn($a) => [
+                    'mal_id' => $a->mal_id,
+                    'title' => $a->title,
+                    'score' => $a->score,
+                    'images' => ['jpg' => ['image_url' => $a->image_url]],
+                ]);
         }
 
         $watching = UserAnime::where('user_id', auth()->id())
@@ -82,7 +99,7 @@ class DashboardController extends Controller
         $schedule = $this->jikan->getSchedule();
         $idsSemana = collect($schedule)->flatten(1)->pluck('mal_id')->filter()->unique();
 
-        if ($viendoTodo->isNotEmpty()) {
+                if ($viendoTodo->isNotEmpty()) {
             $ids = $viendoTodo->pluck('anime.mal_id')->filter()->values()->all();
             $latest = $this->jikan->getLatestAiredEpisodes($ids);
 
@@ -91,18 +108,16 @@ class DashboardController extends Controller
                 $ep = $latest[$malId] ?? null;
 
                 if ($ep && $ep > $w->episodes_watched) {
-                    $avisos->push([
+                    $avisos->push((object) [
                         'title' => $w->anime->title,
-                        'image' => $w->anime->image_url,
-                        'texto' => "¡el episodio {$ep} ya salió!",
                         'mal_id' => $malId,
+                        'ep' => $ep,
                     ]);
                 } elseif ($idsSemana->contains($malId)) {
-                    $avisos->push([
+                    $avisos->push((object) [
                         'title' => $w->anime->title,
-                        'image' => $w->anime->image_url,
-                        'texto' => '¡tiene episodio nuevo esta semana!',
                         'mal_id' => $malId,
+                        'ep' => null,
                     ]);
                 }
             }
