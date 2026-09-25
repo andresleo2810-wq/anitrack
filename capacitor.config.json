@@ -3,7 +3,7 @@
   "appName": "AniTrack",
   "webDir": "public",
   "server": {
-    "url": "https://anitrack-e53q.onrender.com",
+    "url": "https://anitrack-cmhq.onrender.com",
     "androidScheme": "https"
   }
 }
