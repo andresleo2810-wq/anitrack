@@ -3,7 +3,7 @@
   "appName": "AniTrack",
   "webDir": "public",
   "server": {
-    "url": "https://yes-voice-luis-prospective.trycloudflare.com",
+    "url": "https://anitrack-e53q.onrender.com",
     "androidScheme": "https"
   }
 }
