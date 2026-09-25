@@ -20,8 +20,7 @@ COPY . .
 COPY --from=assets /build/public/build ./public/build
 
 RUN composer install --no-dev --optimize-autoloader --no-interaction \
-    && php artisan package:discover --ansi \
-    && php artisan optimize
+    && php artisan package:discover --ansi
 
 EXPOSE 10000
 CMD sh -c "php artisan migrate --force || php artisan migrate --force || true; php artisan serve --host=0.0.0.0 --port=${PORT}"
